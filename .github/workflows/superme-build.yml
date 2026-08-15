@@ -12,6 +12,16 @@ jobs:
       - name: Checkout Superme repository
         uses: actions/checkout@v4
 
+      - name: Save Superme overlay files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/superme-overlay
+          cp -a TMessagesProj/src/main/java/org/telegram/ui/AdminPanelActivity.java /tmp/superme-overlay/
+          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java /tmp/superme-overlay/
+          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java /tmp/superme-overlay/
+          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java /tmp/superme-overlay/
+
       - name: Checkout full Telegram Android source
         uses: actions/checkout@v4
         with:
@@ -20,14 +30,36 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Use upstream Telegram project as complete Android base
+      - name: Apply Telegram base and Superme overlay
         shell: bash
         run: |
           set -euo pipefail
           cp -a telegram-upstream/. ./
           rm -rf telegram-upstream
+          mkdir -p TMessagesProj/src/main/java/org/telegram/ui
+          cp -a /tmp/superme-overlay/. TMessagesProj/src/main/java/org/telegram/ui/
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java')
+          s = p.read_text(encoding='utf-8')
+          marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
+          add = marker + '\n        items.add(SettingCell.Factory.of(24, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, "Hadya (Superme server)"));'
+          if 'Hadya (Superme server)' not in s:
+              if marker not in s:
+                  raise SystemExit('Settings gift insertion point not found')
+              s = s.replace(marker, add, 1)
+          marker2 = '            case 17:\n'
+          add2 = '            case 24:\n                presentSettingFragment(new CustomGiftStoreActivity());\n                break;\n' + marker2
+          if 'case 24:' not in s:
+              if marker2 not in s:
+                  raise SystemExit('Settings click insertion point not found')
+              s = s.replace(marker2, add2, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
           test -f ./gradlew
           test -d ./TMessagesProj
+          test -f ./TMessagesProj/src/main/java/org/telegram/ui/AdminPanelActivity.java
+          test -f ./TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
