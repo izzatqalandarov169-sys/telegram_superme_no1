@@ -9,17 +9,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout Superme repository
+        uses: actions/checkout@v4
+
+      - name: Checkout full Telegram Android source
+        uses: actions/checkout@v4
+        with:
+          repository: DrKLO/Telegram
+          path: telegram-upstream
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Use upstream Telegram project as complete Android base
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a telegram-upstream/. ./
+          rm -rf telegram-upstream
+          test -f ./gradlew
+          test -d ./TMessagesProj
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
+
       - name: Make Gradle executable
         run: chmod +x ./gradlew
-      - name: Build debug APK
+
+      - name: Build Telegram-compatible debug APK
         run: ./gradlew :TMessagesProj:assembleAfatDebug --stacktrace
+
+      - name: Verify APK exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -path '*/build/outputs/apk/**/*.apk' -print -quit | grep -q .
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: superme-debug-apk
           path: '**/build/outputs/apk/**/*.apk'
+          if-no-files-found: error
