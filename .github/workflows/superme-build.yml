@@ -58,8 +58,6 @@ jobs:
           PY
           test -f ./gradlew
           test -d ./TMessagesProj
-          test -f ./TMessagesProj/src/main/java/org/telegram/ui/AdminPanelActivity.java
-          test -f ./TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -68,21 +66,24 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
       - name: Build Telegram-compatible debug APK
-        run: ./gradlew :TMessagesProj:assembleAfatDebug --stacktrace
+        run: ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace
 
       - name: Verify APK exists
         shell: bash
         run: |
           set -euo pipefail
-          find . -type f -path '*/build/outputs/apk/**/*.apk' -print -quit | grep -q .
+          find TMessagesProj_App/build/outputs/apk -type f -name '*.apk' -print -quit | grep -q .
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: superme-debug-apk
-          path: '**/build/outputs/apk/**/*.apk'
+          path: TMessagesProj_App/build/outputs/apk/**/*.apk
           if-no-files-found: error
