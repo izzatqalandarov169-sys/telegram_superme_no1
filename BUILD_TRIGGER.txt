@@ -1,2 +1,1 @@
-Superme admin panel build verification trigger.
-Full build requested: gift catalog, admin panel, bot creator, profile IDs.
+Superme build trigger: gift marketplace UI, Telegram gift catalog, local unlimited owner Stars and recurring Premium, gift creator only.
