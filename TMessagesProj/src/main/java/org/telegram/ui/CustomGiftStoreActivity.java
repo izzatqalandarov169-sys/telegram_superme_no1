@@ -138,12 +138,10 @@ public class CustomGiftStoreActivity extends BaseFragment {
 
     private void ensureOwnerWallet() {
         if (uid != OWNER_ID) return;
-        String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
-        String last = prefs.getString("owner_grant_month", "");
-        if (!month.equals(last)) {
-            long current = prefs.getLong("u_" + uid + "_stars", 0L);
-            long next = current > Long.MAX_VALUE - MONTHLY_OWNER_STARS ? Long.MAX_VALUE : current + MONTHLY_OWNER_STARS;
-            prefs.edit().putLong("u_" + uid + "_stars", next).putString("owner_grant_month", month).apply();
+        long current = prefs.getLong("u_" + uid + "_stars", 0L);
+        // Keep the owner's local Superme wallet at a usable minimum of 500M Stars.
+        if (current < MONTHLY_OWNER_STARS) {
+            prefs.edit().putLong("u_" + uid + "_stars", MONTHLY_OWNER_STARS).apply();
         }
     }
 
