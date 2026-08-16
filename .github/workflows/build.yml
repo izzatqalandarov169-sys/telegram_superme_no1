@@ -46,14 +46,14 @@ jobs:
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java')
           s = p.read_text(encoding='utf-8')
           marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
-          add = marker + '\n        items.add(SettingCell.Factory.of(24, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, "Hadya (Superme server)"));'
+          add = marker + '\n        items.add(SettingCell.Factory.of(24, 0xFF6C63FF, 0xFF4B44CC, R.drawable.settings_gift, "Hadya (Superme server)"));\n        items.add(SettingCell.Factory.of(25, 0xFF6C63FF, 0xFF4B44CC, R.drawable.settings_gift, "Admin panel"));'
           if 'Hadya (Superme server)' not in s:
               if marker not in s:
                   raise SystemExit('Settings gift insertion point not found')
               s = s.replace(marker, add, 1)
           marker2 = '            case 17:\n'
-          add2 = '            case 24:\n                presentSettingFragment(new CustomGiftStoreActivity());\n                break;\n' + marker2
-          if 'case 24:' not in s:
+          add2 = '            case 25:\n                presentSettingFragment(new AdminPanelActivity());\n                break;\n            case 24:\n                presentSettingFragment(new CustomGiftStoreActivity());\n                break;\n' + marker2
+          if 'case 25:' not in s:
               if marker2 not in s:
                   raise SystemExit('Settings click insertion point not found')
               s = s.replace(marker2, add2, 1)
