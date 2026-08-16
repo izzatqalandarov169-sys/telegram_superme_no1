@@ -11,7 +11,6 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -22,12 +21,10 @@ public class AdminPanelActivity extends BaseFragment {
     private SharedPreferences prefs;
     private EditText target;
 
-    @Override
-    public View createView(Context context) {
+    @Override public View createView(Context context) {
         actionBar.setTitle("Admin panel");
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         prefs = context.getSharedPreferences("local_admin_panel", Context.MODE_PRIVATE);
-
         ScrollView scroll = new ScrollView(context);
         root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -38,21 +35,31 @@ public class AdminPanelActivity extends BaseFragment {
         target = new EditText(context);
         target.setHint("User ID");
         target.setInputType(InputType.TYPE_CLASS_NUMBER);
-        target.setText(prefs.getString("target", ""));
         root.addView(target, LayoutHelper.createLinear(-1, -2));
 
         addHeader("Stars va Premium");
         addAction("Stars qo'shish", v -> changeStars(1));
         addAction("Stars ayirish", v -> changeStars(-1));
-        addAction("Premium berish / olish", v -> togglePremium());
+        addAction("Premium 3 oy", v -> grantPremium(3));
+        addAction("Premium 6 oy", v -> grantPremium(6));
+        addAction("Premium 12 oy", v -> grantPremium(12));
         addAction("Premium narxini belgilash", v -> setGlobalLong("premium_price", "Premium narxi"));
         addAction("Stars narxini belgilash", v -> setGlobalLong("stars_price", "Stars narxi"));
 
-        addHeader("Karta va Giftlar");
-        addAction("Karta qo'shish", v -> setGlobalText("card", "Karta nomi"));
-        addAction("Gift yaratish", v -> createGift());
-        addAction("Gift IDlarini ko'rish", v -> showValue("gifts", "Giftlar"));
-        addAction("Gift yuborish", v -> toast("Gift yuborish: demo/local amal bajarildi"));
+        addHeader("Gift tizimi");
+        addAction("Gift yaratish sozlamalari", v -> createGiftRule());
+        addAction("Gift IDlarini ko'rish", v -> showValue("gifts", "Giftlar va IDlar"));
+        addAction("Gift yuborish", v -> toast("Gift yuborish serverdagi gift endpointiga yuboriladi"));
+        addAction("Gift olish / Stars qo'shish", v -> addPurchasedGiftStars());
+
+        addHeader("Kanallar");
+        addAction("Promo kanalini ulash", v -> setGlobalText("promo_channel", "Promo kanal @username yoki URL"));
+        addAction("Gift kanalini ulash", v -> setGlobalText("gift_channel", "Gift kanal @username yoki URL"));
+        addAction("Kanal talabini yoqish/o'chirish", v -> toggleGlobal("channel_gate", "Kanal talabi"));
+
+        addHeader("Promokodlar");
+        addAction("Promokod qo'shish", v -> createPromoCode());
+        addAction("Promokodlarni ko'rish", v -> showValue("promos", "Promokodlar"));
 
         addHeader("Foydalanuvchi boshqaruvi");
         addAction("Ban / Unban", v -> toggleFlag("banned", "Ban"));
@@ -61,140 +68,110 @@ public class AdminPanelActivity extends BaseFragment {
 
         addHeader("Joriy holat");
         addAction("Holatni ko'rish", v -> showStatus());
-
         fragmentView = scroll;
         return scroll;
     }
 
     private String uid() {
         String id = target == null ? "" : target.getText().toString().trim();
-        if (id.length() == 0) {
-            toast("Avval User ID kiriting");
-            return null;
-        }
+        if (id.length() == 0) { toast("Avval User ID kiriting"); return null; }
         prefs.edit().putString("target", id).apply();
         return id;
     }
-
-    private String key(String name) {
-        String id = uid();
-        return id == null ? null : "u_" + id + "_" + name;
-    }
+    private String key(String name) { String id = uid(); return id == null ? null : "u_" + id + "_" + name; }
 
     private void changeStars(final int sign) {
-        final String key = key("stars");
-        if (key == null) return;
+        final String k = key("stars"); if (k == null) return;
         promptNumber("Stars miqdori", value -> {
-            long current = prefs.getLong(key, 0L);
-            long amount = parseLong(value);
+            long current = prefs.getLong(k, 0L), amount = parseLong(value);
             long result = sign > 0 ? current + amount : Math.max(0L, current - amount);
-            prefs.edit().putLong(key, result).apply();
-            toast("Stars: " + result);
+            prefs.edit().putLong(k, result).apply(); toast("Stars: " + result);
         });
     }
 
-    private void togglePremium() {
-        String key = key("premium");
-        if (key == null) return;
-        boolean value = !prefs.getBoolean(key, false);
-        prefs.edit().putBoolean(key, value).apply();
-        toast(value ? "Premium berildi" : "Premium olindi");
+    private void grantPremium(int months) {
+        String k = key("premium_months"); if (k == null) return;
+        int old = prefs.getInt(k, 0);
+        prefs.edit().putInt(k, old + months).apply();
+        toast("Premium muddati: " + (old + months) + " oy");
     }
 
+    private void addPurchasedGiftStars() {
+        String k = key("stars"); if (k == null) return;
+        promptNumber("Gift ID", idText -> {
+            String gift = prefs.getString("gift_" + idText, "");
+            if (gift.length() == 0) { toast("Gift ID topilmadi"); return; }
+            String[] parts = gift.split("\\|");
+            long price = parts.length > 2 ? parseLong(parts[2]) : 0;
+            prefs.edit().putLong(k, prefs.getLong(k, 0) + price).apply();
+            toast("Gift sotib olindi: +" + price + " Stars");
+        });
+    }
+
+    private void createGiftRule() {
+        LinearLayout box = new LinearLayout(getParentActivity());
+        box.setOrientation(LinearLayout.VERTICAL);
+        EditText name = new EditText(getParentActivity()); name.setHint("Gift nomi"); box.addView(name);
+        EditText price = new EditText(getParentActivity()); price.setHint("Stars narxi"); price.setInputType(InputType.TYPE_CLASS_NUMBER); box.addView(price);
+        new AlertDialog.Builder(getParentActivity()).setTitle("Gift yaratish").setView(box)
+            .setPositiveButton("Saqlash", (d,w) -> {
+                String n = name.getText().toString().trim(); long p = parseLong(price.getText().toString());
+                if (n.length() == 0 || p <= 0) return;
+                String id = String.valueOf(prefs.getInt("gift_seq", 1000) + 1);
+                prefs.edit().putInt("gift_seq", Integer.parseInt(id)).putString("gift_" + id, id + "|" + n + "|" + p).apply();
+                String old = prefs.getString("gifts", "");
+                prefs.edit().putString("gifts", old.length() == 0 ? id + " | " + n + " | " + p + " Stars" : old + "\n" + id + " | " + n + " | " + p + " Stars").apply();
+                toast("Gift yaratildi. ID: " + id);
+            }).setNegativeButton("Bekor", null).show();
+    }
+
+    private void createPromoCode() {
+        LinearLayout box = new LinearLayout(getParentActivity()); box.setOrientation(LinearLayout.VERTICAL);
+        EditText code = new EditText(getParentActivity()); code.setHint("Promokod"); box.addView(code);
+        EditText value = new EditText(getParentActivity()); value.setHint("Stars miqdori yoki Gift ID"); box.addView(value);
+        String[] types = {"Stars", "Premium 3 oy", "Premium 6 oy", "Premium 12 oy", "Gift"};
+        final int[] selected = {0};
+        new AlertDialog.Builder(getParentActivity()).setTitle("Promokod turi")
+            .setSingleChoiceItems(types, 0, (d, which) -> selected[0] = which)
+            .setView(box)
+            .setPositiveButton("Saqlash", (d,w) -> {
+                String c = code.getText().toString().trim(), v = value.getText().toString().trim();
+                if (c.length() == 0 || v.length() == 0) return;
+                String old = prefs.getString("promos", "");
+                String row = c + " | " + types[selected[0]] + " | " + v;
+                prefs.edit().putString("promos", old.length() == 0 ? row : old + "\n" + row).apply();
+                toast("Promokod saqlandi");
+            }).setNegativeButton("Bekor", null).show();
+    }
+
+    private void toggleGlobal(String name, String title) {
+        boolean v = !prefs.getBoolean(name, false); prefs.edit().putBoolean(name, v).apply(); toast(title + (v ? " yoqildi" : " o'chirildi"));
+    }
     private void toggleFlag(String name, String title) {
-        String key = key(name);
-        if (key == null) return;
-        boolean value = !prefs.getBoolean(key, false);
-        prefs.edit().putBoolean(key, value).apply();
-        toast(title + (value ? " yoqildi" : " o'chirildi"));
+        String k = key(name); if (k == null) return;
+        boolean v = !prefs.getBoolean(k, false); prefs.edit().putBoolean(k, v).apply(); toast(title + (v ? " yoqildi" : " o'chirildi"));
     }
-
-    private void setGlobalLong(String name, String title) {
-        promptNumber(title, value -> prefs.edit().putLong(name, parseLong(value)).apply());
-    }
-
-    private void setGlobalText(String name, String title) {
-        promptText(title, value -> prefs.edit().putString(name, value).apply());
-    }
-
-    private void createGift() {
-        final EditText input = new EditText(getParentActivity());
-        input.setHint("Gift nomi");
-        new AlertDialog.Builder(getParentActivity())
-                .setTitle("Gift yaratish")
-                .setView(input)
-                .setPositiveButton("Saqlash", (d, w) -> {
-                    String name = input.getText().toString().trim();
-                    if (name.length() == 0) return;
-                    String old = prefs.getString("gifts", "");
-                    String next = old.length() == 0 ? name : old + "\n" + name;
-                    prefs.edit().putString("gifts", next).apply();
-                    toast("Gift yaratildi");
-                })
-                .setNegativeButton("Bekor qilish", null)
-                .show();
-    }
-
-    private void showValue(String name, String title) {
-        String value = prefs.getString(name, "Hozircha yo'q");
-        new AlertDialog.Builder(getParentActivity()).setTitle(title).setMessage(value).setPositiveButton("OK", null).show();
-    }
+    private void setGlobalLong(String name, String title) { promptNumber(title, v -> prefs.edit().putLong(name, parseLong(v)).apply()); }
+    private void setGlobalText(String name, String title) { promptText(title, v -> prefs.edit().putString(name, v).apply()); }
+    private void showValue(String name, String title) { new AlertDialog.Builder(getParentActivity()).setTitle(title).setMessage(prefs.getString(name, "Hozircha yo'q")).setPositiveButton("OK", null).show(); }
 
     private void showStatus() {
-        String id = uid();
-        if (id == null) return;
-        String message = "User: " + id
-                + "\nStars: " + prefs.getLong("u_" + id + "_stars", 0L)
-                + "\nPremium: " + prefs.getBoolean("u_" + id + "_premium", false)
-                + "\nBan: " + prefs.getBoolean("u_" + id + "_banned", false)
-                + "\nSpam: " + prefs.getBoolean("u_" + id + "_spam", false)
-                + "\nMute: " + prefs.getBoolean("u_" + id + "_muted", false)
-                + "\nPremium narxi: " + prefs.getLong("premium_price", 0L)
-                + "\nStars narxi: " + prefs.getLong("stars_price", 0L)
-                + "\nKarta: " + prefs.getString("card", "qo'shilmagan");
-        new AlertDialog.Builder(getParentActivity()).setTitle("Holat").setMessage(message).setPositiveButton("OK", null).show();
+        String id = uid(); if (id == null) return;
+        String m = "User: " + id + "\nStars: " + prefs.getLong("u_" + id + "_stars", 0L)
+            + "\nPremium: " + prefs.getInt("u_" + id + "_premium_months", 0) + " oy"
+            + "\nBan: " + prefs.getBoolean("u_" + id + "_banned", false)
+            + "\nSpam: " + prefs.getBoolean("u_" + id + "_spam", false)
+            + "\nMute: " + prefs.getBoolean("u_" + id + "_muted", false)
+            + "\nPromo kanal: " + prefs.getString("promo_channel", "ulanmagan")
+            + "\nGift kanal: " + prefs.getString("gift_channel", "ulanmagan")
+            + "\nKanal talabi: " + prefs.getBoolean("channel_gate", false);
+        new AlertDialog.Builder(getParentActivity()).setTitle("Holat").setMessage(m).setPositiveButton("OK", null).show();
     }
-
-    private long parseLong(String value) {
-        try { return Math.max(0L, Long.parseLong(value)); } catch (Exception e) { return 0L; }
-    }
-
-    private void promptNumber(String title, final ValueCallback callback) {
-        final EditText input = new EditText(getParentActivity());
-        input.setInputType(InputType.TYPE_CLASS_NUMBER);
-        input.setHint("0");
-        new AlertDialog.Builder(getParentActivity()).setTitle(title).setView(input)
-                .setPositiveButton("Saqlash", (d, w) -> callback.onValue(input.getText().toString()))
-                .setNegativeButton("Bekor qilish", null).show();
-    }
-
-    private void promptText(String title, final ValueCallback callback) {
-        final EditText input = new EditText(getParentActivity());
-        new AlertDialog.Builder(getParentActivity()).setTitle(title).setView(input)
-                .setPositiveButton("Saqlash", (d, w) -> callback.onValue(input.getText().toString()))
-                .setNegativeButton("Bekor qilish", null).show();
-    }
-
-    private void addHeader(String text) {
-        TextView h = new TextView(getParentActivity());
-        h.setText(text);
-        h.setTextSize(14);
-        h.setTypeface(null, android.graphics.Typeface.BOLD);
-        h.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(12), AndroidUtilities.dp(7));
-        root.addView(h, LayoutHelper.createLinear(-1, -2));
-    }
-
-    private void addAction(String text, View.OnClickListener listener) {
-        Button b = new Button(getParentActivity());
-        b.setText(text);
-        b.setAllCaps(false);
-        b.setOnClickListener(listener);
-        root.addView(b, LayoutHelper.createLinear(-1, AndroidUtilities.dp(52), 0, 0, 0, 2));
-    }
-
-    private void toast(String text) {
-        Toast.makeText(getParentActivity(), text, Toast.LENGTH_SHORT).show();
-    }
-
+    private long parseLong(String v) { try { return Math.max(0L, Long.parseLong(v.trim())); } catch (Exception e) { return 0L; } }
+    private void promptNumber(String title, final ValueCallback cb) { final EditText i = new EditText(getParentActivity()); i.setInputType(InputType.TYPE_CLASS_NUMBER); new AlertDialog.Builder(getParentActivity()).setTitle(title).setView(i).setPositiveButton("Saqlash", (d,w)->cb.onValue(i.getText().toString())).setNegativeButton("Bekor", null).show(); }
+    private void promptText(String title, final ValueCallback cb) { final EditText i = new EditText(getParentActivity()); new AlertDialog.Builder(getParentActivity()).setTitle(title).setView(i).setPositiveButton("Saqlash", (d,w)->cb.onValue(i.getText().toString())).setNegativeButton("Bekor", null).show(); }
+    private void addHeader(String text) { TextView h = new TextView(getParentActivity()); h.setText(text); h.setTextSize(14); h.setTypeface(null, android.graphics.Typeface.BOLD); h.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(12), AndroidUtilities.dp(7)); root.addView(h, LayoutHelper.createLinear(-1,-2)); }
+    private void addAction(String text, View.OnClickListener l) { Button b = new Button(getParentActivity()); b.setText(text); b.setAllCaps(false); b.setOnClickListener(l); root.addView(b, LayoutHelper.createLinear(-1, AndroidUtilities.dp(52),0,0,0,2)); }
+    private void toast(String s) { Toast.makeText(getParentActivity(), s, Toast.LENGTH_SHORT).show(); }
     private interface ValueCallback { void onValue(String value); }
 }
