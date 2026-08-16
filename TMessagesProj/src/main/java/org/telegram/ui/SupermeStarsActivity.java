@@ -16,14 +16,11 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-
 /** Local Superme Stars wallet. It never calls Telegram's production billing API. */
 public class SupermeStarsActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
     private static final long MONTHLY_STARS = 500_000_000L;
+    private static final long GRANT_PERIOD_MS = 30L * 24L * 60L * 60L * 1000L;
     private SharedPreferences prefs;
     private TextView balance;
 
@@ -73,7 +70,7 @@ public class SupermeStarsActivity extends BaseFragment {
         root.addView(history, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48)));
 
         TextView note = new TextView(context);
-        note.setText("Har oy ⭐ 500 000 000 Superme Stars qo'shiladi. Bu faqat ilovaning lokal Superme balansi; haqiqiy Telegram Stars billingiga ulanmaydi.");
+        note.setText("Birinchi kirishda ⭐ 500 000 000 beriladi, keyin har 30 kunda yana ⭐ 500 000 000 qo'shiladi. Bu faqat ilovaning lokal Superme balansi; haqiqiy Telegram Stars billingiga ulanmaydi.");
         note.setTextSize(13);
         note.setPadding(0, AndroidUtilities.dp(14), 0, 0);
         root.addView(note, LayoutHelper.createLinear(-1, -2));
@@ -83,9 +80,9 @@ public class SupermeStarsActivity extends BaseFragment {
     }
 
     private void grantMonthlyStars(long uid) {
-        String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
-        String lastMonth = prefs.getString("u_" + uid + "_last_stars_month", "");
-        if (month.equals(lastMonth)) {
+        long now = System.currentTimeMillis();
+        long last = prefs.getLong("u_" + uid + "_last_stars_grant", 0L);
+        if (last != 0L && now - last < GRANT_PERIOD_MS) {
             return;
         }
 
@@ -95,11 +92,11 @@ public class SupermeStarsActivity extends BaseFragment {
                 : current + MONTHLY_STARS;
 
         String history = prefs.getString("u_" + uid + "_stars_history", "");
-        history += "\n+500 000 000 Stars (" + month + " oylik bonus)";
+        history += "\n+500 000 000 Stars (30 kunlik Superme bonus)";
 
         prefs.edit()
                 .putLong("u_" + uid + "_stars", result)
-                .putString("u_" + uid + "_last_stars_month", month)
+                .putLong("u_" + uid + "_last_stars_grant", now)
                 .putString("u_" + uid + "_stars_history", history)
                 .apply();
     }
