@@ -28,7 +28,8 @@ import java.util.List;
 /** Local Superme gift store. Purchases are local to this clone and never charge Telegram. */
 public class CustomGiftStoreActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
-    private static final long OWNER_FREE_STARS = 999_000_000_000_000L;
+    private static final long MONTHLY_OWNER_STARS = 500_000_000L;
+    private static final String STARS_MIGRATION = "owner_stars_monthly_v2";
 
     private SharedPreferences prefs;
     private LinearLayout grid;
@@ -102,8 +103,31 @@ public class CustomGiftStoreActivity extends BaseFragment {
     }
 
     private void ensureOwnerWallet() {
-        if (uid == OWNER_ID && prefs.getLong("u_" + uid + "_stars", 0L) < OWNER_FREE_STARS) {
-            prefs.edit().putLong("u_" + uid + "_stars", OWNER_FREE_STARS).apply();
+        if (uid != OWNER_ID) return;
+
+        String currentMonth = new java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(new java.util.Date());
+        String lastMonth = prefs.getString("u_" + uid + "_stars_grant_month", "");
+
+        // One-time migration from the old 999T test balance to the new 500M/month system.
+        if (!prefs.getBoolean(STARS_MIGRATION, false)) {
+            prefs.edit()
+                    .putLong("u_" + uid + "_stars", MONTHLY_OWNER_STARS)
+                    .putString("u_" + uid + "_stars_grant_month", currentMonth)
+                    .putBoolean(STARS_MIGRATION, true)
+                    .apply();
+            return;
+        }
+
+        // Add another 500M at the beginning of each new calendar month.
+        if (!currentMonth.equals(lastMonth)) {
+            long current = prefs.getLong("u_" + uid + "_stars", 0L);
+            long next = current > Long.MAX_VALUE - MONTHLY_OWNER_STARS
+                    ? Long.MAX_VALUE
+                    : current + MONTHLY_OWNER_STARS;
+            prefs.edit()
+                    .putLong("u_" + uid + "_stars", next)
+                    .putString("u_" + uid + "_stars_grant_month", currentMonth)
+                    .apply();
         }
     }
 
@@ -220,23 +244,20 @@ public class CustomGiftStoreActivity extends BaseFragment {
         ensureOwnerWallet();
         long price = GiftCatalog.price(id);
         long balanceNow = prefs.getLong("u_" + uid + "_stars", 0L);
-        if (uid != OWNER_ID && balanceNow < price) {
+        if (balanceNow < price) {
             Toast.makeText(context, "Stars yetarli emas", Toast.LENGTH_SHORT).show();
             return;
         }
-        // Owner balance stays at 999 trillion, so every gift is effectively unlimited for the owner.
-        if (uid == OWNER_ID) {
-            prefs.edit().putLong("u_" + uid + "_stars", OWNER_FREE_STARS).apply();
-        } else {
-            prefs.edit().putLong("u_" + uid + "_stars", balanceNow - price).apply();
-        }
+
+        // Every local purchase really deducts the gift price, including for the owner.
+        prefs.edit().putLong("u_" + uid + "_stars", balanceNow - price).apply();
 
         String key = "u_" + uid + "_owned_gifts";
         String giftRow = id + "|" + GiftCatalog.name(id) + "|" + price + "|" + GiftCatalog.emoji(id);
         String old = prefs.getString(key, "");
         prefs.edit().putString(key, old.length() == 0 ? giftRow : old + "\n" + giftRow).apply();
         updateBalance();
-        Toast.makeText(context, "🎁 " + GiftCatalog.name(id) + " olindi", Toast.LENGTH_SHORT).show();
+        Toast.makeText(context, "🎁 " + GiftCatalog.name(id) + " olindi • -⭐ " + price, Toast.LENGTH_SHORT).show();
     }
 
     private void showOwnedGifts(Context context) {
