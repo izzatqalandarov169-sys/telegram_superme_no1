@@ -52,9 +52,14 @@ public class AdminPanelActivity extends BaseFragment {
         addAction("Gift yuborish", v -> toast("Gift yuborish serverdagi gift endpointiga yuboriladi"));
         addAction("Gift olish / Stars qo'shish", v -> addPurchasedGiftStars());
 
-        addHeader("Karta");
+        addHeader("Karta va to'lov");
         addAction("Karta qo'shish", v -> addCard());
         addAction("Kartalarni ko'rish", v -> showValue("cards", "Saqlangan kartalar"));
+        addAction("To'lov ma'lumotlarini ko'rish", v -> showPaymentInfo());
+        addAction("Chek / to'lov so'rovini qo'shish", v -> createPaymentRequest());
+        addAction("Kutilayotgan to'lovlar", v -> showValue("payments", "To'lovlar"));
+        addAction("To'lovni tasdiqlash", v -> approvePayment());
+        addAction("To'lovni rad etish", v -> rejectPayment());
 
         addHeader("Kanallar");
         addAction("Promo kanalini ulash", v -> setGlobalText("promo_channel", "Promo kanal @username yoki URL"));
@@ -132,18 +137,102 @@ public class AdminPanelActivity extends BaseFragment {
     private void addCard() {
         LinearLayout box = new LinearLayout(getParentActivity());
         box.setOrientation(LinearLayout.VERTICAL);
-        EditText name = new EditText(getParentActivity()); name.setHint("Karta nomi"); box.addView(name);
-        EditText number = new EditText(getParentActivity()); number.setHint("Karta raqami"); number.setInputType(InputType.TYPE_CLASS_NUMBER); box.addView(number);
+        EditText holder = new EditText(getParentActivity()); holder.setHint("Karta egasi ism-familiyasi"); box.addView(holder);
+        EditText number = new EditText(getParentActivity()); number.setHint("Uzcard karta raqami"); number.setInputType(InputType.TYPE_CLASS_NUMBER); box.addView(number);
         EditText status = new EditText(getParentActivity()); status.setHint("Holati (faol/nofaol)"); box.addView(status);
         new AlertDialog.Builder(getParentActivity()).setTitle("Karta qo'shish").setView(box)
             .setPositiveButton("Saqlash", (d,w) -> {
-                String n = name.getText().toString().trim(), num = number.getText().toString().trim(), s = status.getText().toString().trim();
-                if (n.length() == 0 || num.length() == 0) return;
-                String row = n + " | " + num + " | " + (s.length() == 0 ? "faol" : s);
+                String h = holder.getText().toString().trim(), num = number.getText().toString().trim(), s = status.getText().toString().trim();
+                if (h.length() == 0 || num.length() == 0) { toast("Ism-familiya va karta raqami kerak"); return; }
+                String row = h + " | " + num + " | " + (s.length() == 0 ? "faol" : s);
                 String old = prefs.getString("cards", "");
                 prefs.edit().putString("cards", old.length() == 0 ? row : old + "\n" + row).apply();
+                prefs.edit().putString("payment_card_holder", h).putString("payment_card_number", num).apply();
                 toast("Karta saqlandi");
             }).setNegativeButton("Bekor", null).show();
+    }
+
+    private void showPaymentInfo() {
+        String holder = prefs.getString("payment_card_holder", "kiritilmagan");
+        String number = prefs.getString("payment_card_number", "kiritilmagan");
+        String text = "Karta egasi: " + holder + "\nKarta: " + number +
+                "\n\nTo'lovni amalga oshirgach chekni yuboring.\nTasdiqlashdan keyin tanlangan Stars, Premium yoki Gift beriladi.\n\nMuammo bo'lsa: Admin bilan gaplashing.";
+        new AlertDialog.Builder(getParentActivity()).setTitle("To'lov ma'lumotlari").setMessage(text).setPositiveButton("OK", null).show();
+    }
+
+    private void createPaymentRequest() {
+        LinearLayout box = new LinearLayout(getParentActivity()); box.setOrientation(LinearLayout.VERTICAL);
+        EditText user = new EditText(getParentActivity()); user.setHint("User ID"); user.setInputType(InputType.TYPE_CLASS_NUMBER); box.addView(user);
+        EditText product = new EditText(getParentActivity()); product.setHint("Stars / Premium 3 oy / Premium 6 oy / Premium 12 oy / Gift ID"); box.addView(product);
+        EditText amount = new EditText(getParentActivity()); amount.setHint("Miqdor (Stars yoki oy)"); amount.setInputType(InputType.TYPE_CLASS_NUMBER); box.addView(amount);
+        EditText receipt = new EditText(getParentActivity()); receipt.setHint("Chek ID yoki izoh"); box.addView(receipt);
+        new AlertDialog.Builder(getParentActivity()).setTitle("Chek / to'lov so'rovi").setView(box)
+            .setPositiveButton("Kutilmoqda", (d,w) -> {
+                String u = user.getText().toString().trim(), p = product.getText().toString().trim(), a = amount.getText().toString().trim(), r = receipt.getText().toString().trim();
+                if (u.length() == 0 || p.length() == 0 || a.length() == 0) { toast("User, mahsulot va miqdor kerak"); return; }
+                int id = prefs.getInt("payment_seq", 1000) + 1;
+                prefs.edit().putInt("payment_seq", id).putString("payment_" + id, u + "|" + p + "|" + a + "|" + r + "|PENDING").apply();
+                appendLine("payments", id + " | " + u + " | " + p + " | " + a + " | " + r + " | PENDING");
+                toast("To'lov #" + id + " kutilmoqda");
+            }).setNegativeButton("Bekor", null).show();
+    }
+
+    private void approvePayment() {
+        promptNumber("Tasdiqlanadigan to'lov ID", value -> {
+            int id = (int) parseLong(value);
+            String raw = prefs.getString("payment_" + id, "");
+            if (raw.length() == 0) { toast("To'lov topilmadi"); return; }
+            String[] parts = raw.split("\\|", -1);
+            if (parts.length < 5 || !"PENDING".equals(parts[4])) { toast("Bu to'lov allaqachon ko'rib chiqilgan"); return; }
+            grantPayment(parts[0], parts[1], parseLong(parts[2]));
+            prefs.edit().putString("payment_" + id, raw.replace("|PENDING", "|APPROVED")).apply();
+            replacePaymentStatus(id, "APPROVED");
+            toast("To'lov #" + id + " tasdiqlandi");
+        });
+    }
+
+    private void rejectPayment() {
+        promptNumber("Rad etiladigan to'lov ID", value -> {
+            int id = (int) parseLong(value);
+            String raw = prefs.getString("payment_" + id, "");
+            if (raw.length() == 0) { toast("To'lov topilmadi"); return; }
+            if (!raw.endsWith("|PENDING")) { toast("Bu to'lov allaqachon ko'rib chiqilgan"); return; }
+            prefs.edit().putString("payment_" + id, raw.replace("|PENDING", "|REJECTED")).apply();
+            replacePaymentStatus(id, "REJECTED");
+            toast("To'lov #" + id + " rad etildi");
+        });
+    }
+
+    private void grantPayment(String userId, String product, long amount) {
+        String base = "u_" + userId + "_";
+        String p = product.toLowerCase();
+        if (p.startsWith("stars")) {
+            prefs.edit().putLong(base + "stars", prefs.getLong(base + "stars", 0L) + amount).apply();
+        } else if (p.contains("premium")) {
+            prefs.edit().putInt(base + "premium_months", prefs.getInt(base + "premium_months", 0) + (int) amount).apply();
+        } else if (p.startsWith("gift")) {
+            prefs.edit().putString(base + "last_gift", product).apply();
+        }
+    }
+
+    private void replacePaymentStatus(int id, String status) {
+        String all = prefs.getString("payments", "");
+        String[] lines = all.split("\\n", -1);
+        StringBuilder out = new StringBuilder();
+        for (String line : lines) {
+            if (line.startsWith(id + " | ")) {
+                String[] p = line.split(" \\| ", -1);
+                if (p.length >= 6) line = p[0] + " | " + p[1] + " | " + p[2] + " | " + p[3] + " | " + p[4] + " | " + status;
+            }
+            if (out.length() > 0) out.append('\n');
+            if (line.length() > 0) out.append(line);
+        }
+        prefs.edit().putString("payments", out.toString()).apply();
+    }
+
+    private void appendLine(String key, String line) {
+        String old = prefs.getString(key, "");
+        prefs.edit().putString(key, old.length() == 0 ? line : old + "\n" + line).apply();
     }
 
     private void createPromoCode() {
