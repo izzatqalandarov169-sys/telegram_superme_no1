@@ -30,12 +30,16 @@ public class CustomGiftStoreActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
     private static final long MONTHLY_OWNER_STARS = 500_000_000L;
     private static final String STARS_MIGRATION = "owner_stars_monthly_v2";
+    private static final int PAGE_SIZE = 150;
 
     private SharedPreferences prefs;
     private LinearLayout grid;
     private TextView balance;
     private EditText search;
+    private Button loadMore;
     private long uid;
+    private int pageOffset;
+    private boolean hasMore;
     private final List<Integer> visibleIds = new ArrayList<>();
 
     @Override
@@ -92,11 +96,24 @@ public class CustomGiftStoreActivity extends BaseFragment {
         grid.setOrientation(LinearLayout.VERTICAL);
         root.addView(grid, LayoutHelper.createLinear(-1, -2));
 
+        loadMore = new Button(context);
+        loadMore.setText("Ko'proq giftlarni ko'rsatish");
+        loadMore.setAllCaps(false);
+        loadMore.setOnClickListener(v -> {
+            pageOffset += PAGE_SIZE;
+            rebuildGrid(context);
+        });
+        root.addView(loadMore, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48), 0, 8, 0, 8));
+
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { rebuildGrid(context); }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                pageOffset = 0;
+                rebuildGrid(context);
+            }
             @Override public void afterTextChanged(Editable s) {}
         });
+
         rebuildGrid(context);
         fragmentView = scroll;
         return scroll;
@@ -108,7 +125,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
         String currentMonth = new java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(new java.util.Date());
         String lastMonth = prefs.getString("u_" + uid + "_stars_grant_month", "");
 
-        // One-time migration from the old 999T test balance to the new 500M/month system.
         if (!prefs.getBoolean(STARS_MIGRATION, false)) {
             prefs.edit()
                     .putLong("u_" + uid + "_stars", MONTHLY_OWNER_STARS)
@@ -118,7 +134,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
             return;
         }
 
-        // Add another 500M at the beginning of each new calendar month.
         if (!currentMonth.equals(lastMonth)) {
             long current = prefs.getLong("u_" + uid + "_stars", 0L);
             long next = current > Long.MAX_VALUE - MONTHLY_OWNER_STARS
@@ -162,18 +177,51 @@ public class CustomGiftStoreActivity extends BaseFragment {
             title = "Naqsh";
             values = new String[]{"Hammasi", "Classic", "Holiday", "Love", "Galaxy", "Nature", "Festival"};
         }
-        new AlertDialog.Builder(context).setTitle(title).setItems(values, (d, which) -> search.setText(which == 0 ? "" : values[which])).show();
+        new AlertDialog.Builder(context).setTitle(title).setItems(values, (d, which) -> {
+            pageOffset = 0;
+            search.setText(which == 0 ? "" : values[which]);
+        }).show();
     }
 
     private void rebuildGrid(Context context) {
         if (grid == null) return;
         grid.removeAllViews();
         visibleIds.clear();
+
         String q = search == null ? "" : search.getText().toString().trim().toLowerCase();
+        int targetStart = pageOffset;
+        int matched = 0;
+        int scanned = 0;
+
+        // Never create 300,001 Android views at once. Only one small page is rendered.
         for (int id = 1; id <= GiftCatalog.COUNT; id++) {
-            String hay = (GiftCatalog.name(id) + " " + GiftCatalog.rarity(id) + " " + GiftCatalog.theme(id)).toLowerCase();
-            if (q.length() == 0 || hay.contains(q) || String.valueOf(id).equals(q)) visibleIds.add(id);
+            if (q.length() > 0) {
+                String hay = (GiftCatalog.name(id) + " " + GiftCatalog.rarity(id) + " " + GiftCatalog.theme(id)).toLowerCase();
+                if (!hay.contains(q) && !String.valueOf(id).equals(q)) continue;
+            }
+            if (matched++ < targetStart) continue;
+            visibleIds.add(id);
+            scanned++;
+            if (scanned >= PAGE_SIZE) break;
         }
+
+        // Determine whether another page exists without building its views.
+        hasMore = false;
+        if (visibleIds.size() == PAGE_SIZE) {
+            int seenAfter = 0;
+            int startAfter = targetStart + PAGE_SIZE;
+            for (int id = 1; id <= GiftCatalog.COUNT; id++) {
+                if (q.length() > 0) {
+                    String hay = (GiftCatalog.name(id) + " " + GiftCatalog.rarity(id) + " " + GiftCatalog.theme(id)).toLowerCase();
+                    if (!hay.contains(q) && !String.valueOf(id).equals(q)) continue;
+                }
+                if (seenAfter++ >= startAfter) {
+                    hasMore = true;
+                    break;
+                }
+            }
+        }
+
         LinearLayout row = null;
         for (int i = 0; i < visibleIds.size(); i++) {
             if (i % 3 == 0) {
@@ -183,12 +231,17 @@ public class CustomGiftStoreActivity extends BaseFragment {
             }
             addGiftCard(context, row, visibleIds.get(i));
         }
+
         if (visibleIds.isEmpty()) {
             TextView empty = new TextView(context);
             empty.setText("Gift topilmadi");
             empty.setGravity(android.view.Gravity.CENTER);
             empty.setTextSize(17);
             grid.addView(empty, LayoutHelper.createLinear(-1, AndroidUtilities.dp(100)));
+        }
+
+        if (loadMore != null) {
+            loadMore.setVisibility(hasMore ? View.VISIBLE : View.GONE);
         }
     }
 
@@ -249,7 +302,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
             return;
         }
 
-        // Every local purchase really deducts the gift price, including for the owner.
         prefs.edit().putLong("u_" + uid + "_stars", balanceNow - price).apply();
 
         String key = "u_" + uid + "_owned_gifts";
