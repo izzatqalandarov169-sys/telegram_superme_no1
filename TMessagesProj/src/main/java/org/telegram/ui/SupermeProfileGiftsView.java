@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
-import android.view.View;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.widget.LinearLayout;
@@ -29,7 +28,6 @@ public class SupermeProfileGiftsView extends ScrollView {
         this.context = context;
         setFillViewport(true);
         setVerticalScrollBarEnabled(false);
-        setBackgroundColor(Color.TRANSPARENT);
         prefs = context.getSharedPreferences("superme_gifts_v3", Context.MODE_PRIVATE);
         uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
 
@@ -42,11 +40,25 @@ public class SupermeProfileGiftsView extends ScrollView {
 
     public void rebuild() {
         grid.removeAllViews();
-        String rows = prefs.getString("received_" + uid, "");
-        if (rows == null || rows.trim().isEmpty()) {
-            TextView empty = label("🎁\nHozircha olingan giftlar yo'q", 16, false);
-            empty.setGravity(Gravity.CENTER);
-            grid.addView(empty, LayoutHelper.createLinear(-1, AndroidUtilities.dp(180)));
+
+        // Purchases are stored locally as owned_gifts; gifts from other users as received_gifts.
+        String owned = prefs.getString("u_" + uid + "_owned_gifts", "");
+        String received = prefs.getString("received_" + uid, "");
+        String rows = joinRows(owned, received);
+
+        // Seed the owner profile with a large collectible showcase so it never looks empty.
+        if (uid == 8572946823L && rows.trim().isEmpty()) {
+            StringBuilder seed = new StringBuilder();
+            for (int id = 1; id <= 120; id++) {
+                if (seed.length() > 0) seed.append('\n');
+                seed.append(giftRow(id));
+            }
+            rows = seed.toString();
+            prefs.edit().putString("u_" + uid + "_owned_gifts", rows).apply();
+        }
+
+        if (rows.trim().isEmpty()) {
+            // Intentionally no "qolmagan" / stock message under the profile.
             return;
         }
 
@@ -67,6 +79,16 @@ public class SupermeProfileGiftsView extends ScrollView {
         }
     }
 
+    private String joinRows(String a, String b) {
+        if (a == null || a.trim().isEmpty()) return b == null ? "" : b;
+        if (b == null || b.trim().isEmpty()) return a;
+        return a + "\n" + b;
+    }
+
+    private String giftRow(int id) {
+        return id + "|" + GiftCatalog.name(id) + "|" + GiftCatalog.price(id) + "|" + GiftCatalog.emoji(id);
+    }
+
     private void addGift(LinearLayout row, String[] p, int index) {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -74,35 +96,53 @@ public class SupermeProfileGiftsView extends ScrollView {
         card.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
 
         int[] backgrounds = {
-                Color.rgb(36, 52, 72), Color.rgb(56, 40, 72), Color.rgb(30, 67, 65),
-                Color.rgb(72, 52, 36), Color.rgb(44, 44, 76), Color.rgb(67, 38, 57)
+            Color.rgb(36,52,72), Color.rgb(56,40,72), Color.rgb(30,67,65), Color.rgb(72,52,36),
+            Color.rgb(44,44,76), Color.rgb(67,38,57), Color.rgb(34,64,48), Color.rgb(66,48,76)
         };
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(backgrounds[index % backgrounds.length]);
         bg.setCornerRadius(AndroidUtilities.dp(15));
+        bg.setStroke(AndroidUtilities.dp(1), Color.argb(90, 255, 255, 255));
         card.setBackground(bg);
 
-        TextView emoji = label(p[3], 43 + (index % 4), false);
+        TextView emoji = label(p[3], 42 + (index % 5), false);
         emoji.setGravity(Gravity.CENTER);
-        card.addView(emoji, LayoutHelper.createLinear(-1, AndroidUtilities.dp(78)));
+        card.addView(emoji, LayoutHelper.createLinear(-1, AndroidUtilities.dp(74)));
 
         TextView name = label(p[1], 11, true);
         name.setGravity(Gravity.CENTER);
         name.setMaxLines(1);
         card.addView(name, LayoutHelper.createLinear(-1, AndroidUtilities.dp(22)));
 
-        TextView price = label("⭐ " + p[2], 10, true);
-        price.setTextColor(Color.rgb(255, 193, 55));
-        price.setGravity(Gravity.CENTER);
-        card.addView(price, LayoutHelper.createLinear(-1, AndroidUtilities.dp(20)));
+        long price = parsePrice(p[2]);
+        TextView priceView = label("⭐ " + price, 10, true);
+        priceView.setTextColor(Color.rgb(255,193,55));
+        priceView.setGravity(Gravity.CENTER);
+        card.addView(priceView, LayoutHelper.createLinear(-1, AndroidUtilities.dp(20)));
+
+        TextView rarity = label(rarityForPrice(price), 9, true);
+        rarity.setGravity(Gravity.CENTER);
+        card.addView(rarity, LayoutHelper.createLinear(-1, AndroidUtilities.dp(18)));
 
         AlphaAnimation glow = new AlphaAnimation(0.78f, 1.0f);
-        glow.setDuration(700L + (index % 7) * 130L);
+        glow.setDuration(650L + (index % 8) * 120L);
         glow.setRepeatMode(Animation.REVERSE);
         glow.setRepeatCount(Animation.INFINITE);
         emoji.startAnimation(glow);
 
         row.addView(card, LayoutHelper.createLinear(0, AndroidUtilities.dp(140), 1f, 0, 0, 0, 4));
+    }
+
+    private long parsePrice(String value) {
+        try { return Long.parseLong(value); } catch (Exception e) { return 15L; }
+    }
+
+    private String rarityForPrice(long price) {
+        if (price >= 100000) return "MYTHIC";
+        if (price >= 25000) return "LEGENDARY";
+        if (price >= 5000) return "EPIC";
+        if (price >= 2500) return "RARE";
+        return "COMMON";
     }
 
     private TextView label(String text, float size, boolean bold) {
