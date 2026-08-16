@@ -16,10 +16,6 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-
 /** Local Superme Stars wallet. It never calls Telegram's production billing API. */
 public class SupermeStarsActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
@@ -34,7 +30,7 @@ public class SupermeStarsActivity extends BaseFragment {
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         long uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
-        if (uid == OWNER_ID) grantMonthlyStars(uid);
+        if (uid == OWNER_ID) grantOwnerStars(uid);
 
         ScrollView scroll = new ScrollView(context);
         LinearLayout root = new LinearLayout(context);
@@ -71,7 +67,7 @@ public class SupermeStarsActivity extends BaseFragment {
         root.addView(history, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48)));
 
         TextView note = new TextView(context);
-        note.setText("Birinchi kirishda ⭐ 500 000 000 beriladi, keyin har oy yana ⭐ 500 000 000 qo'shiladi. Bu faqat ilovaning lokal Superme balansi; haqiqiy Telegram Stars billingiga ulanmaydi.");
+        note.setText("Birinchi kirishda ⭐ 500 000 000 beriladi. Bu faqat ilovaning lokal Superme balansi; haqiqiy Telegram Stars billingiga ulanmaydi.");
         note.setTextSize(13);
         note.setPadding(0, AndroidUtilities.dp(14), 0, 0);
         root.addView(note, LayoutHelper.createLinear(-1, -2));
@@ -80,18 +76,13 @@ public class SupermeStarsActivity extends BaseFragment {
         return scroll;
     }
 
-    private void grantMonthlyStars(long uid) {
-        String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
-        String last = prefs.getString("owner_grant_month", "");
-        if (month.equals(last)) return;
-
+    private void grantOwnerStars(long uid) {
         long current = prefs.getLong("u_" + uid + "_stars", 0L);
-        long result = current > Long.MAX_VALUE - MONTHLY_STARS ? Long.MAX_VALUE : current + MONTHLY_STARS;
-        String history = prefs.getString("u_" + uid + "_stars_history", "");
-        history += "\n+500 000 000 Stars (" + month + " oylik Superme bonus)";
-        prefs.edit().putLong("u_" + uid + "_stars", result)
-                .putString("owner_grant_month", month)
-                .putString("u_" + uid + "_stars_history", history).apply();
+        if (current < MONTHLY_STARS) {
+            prefs.edit().putLong("u_" + uid + "_stars", MONTHLY_STARS)
+                    .putString("u_" + uid + "_stars_history", prefs.getString("u_" + uid + "_stars_history", "") + "\n+500 000 000 Stars (Superme bonus)")
+                    .apply();
+        }
     }
 
     private void updateBalance(long uid) {
