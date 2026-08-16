@@ -52,7 +52,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # Settings shortcuts for Superme features.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java')
           s = p.read_text(encoding='utf-8')
           marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
@@ -72,7 +71,6 @@ jobs:
               s = s.replace(marker, cases + marker, 1)
           p.write_text(s, encoding='utf-8')
 
-          # Put locally received Superme gifts inside the normal Telegram profile Gifts tab.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java')
           s = p.read_text(encoding='utf-8')
           field_marker = '    public ProfileGiftsView giftsView;\n'
@@ -85,10 +83,12 @@ jobs:
           setup_add = '''        sharedMediaLayout.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.MATCH_PARENT));
         sharedMediaLayout.initBlurCapture((ViewGroup) fragmentView);
         supermeProfileGiftsView = new SupermeProfileGiftsView(context);
-        supermeProfileGiftsView.setVisibility(View.GONE);
         FrameLayout.LayoutParams supermeGiftsLp = LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT);
         supermeGiftsLp.topMargin = dp(54);
         frameLayout.addView(supermeProfileGiftsView, supermeGiftsLp);
+        boolean showSupermeGifts = sharedMediaLayout.getClosestTab() == SharedMediaLayout.TAB_GIFTS;
+        supermeProfileGiftsView.setVisibility(showSupermeGifts ? View.VISIBLE : View.GONE);
+        if (showSupermeGifts) supermeProfileGiftsView.rebuild();
 '''
           if 'supermeProfileGiftsView = new SupermeProfileGiftsView(context);' not in s:
               if setup_marker not in s:
@@ -103,16 +103,13 @@ jobs:
                 if (supermeProfileGiftsView != null) {
                     boolean show = getSelectedTab() == SharedMediaLayout.TAB_GIFTS;
                     supermeProfileGiftsView.setVisibility(show ? View.VISIBLE : View.GONE);
-                    if (show) {
-                        supermeProfileGiftsView.rebuild();
-                    }
+                    if (show) supermeProfileGiftsView.rebuild();
                 }
             }'''
           if 'boolean show = getSelectedTab() == SharedMediaLayout.TAB_GIFTS;' not in s:
               if tab_marker not in s:
                   raise SystemExit('Profile tab callback insertion point not found')
               s = s.replace(tab_marker, tab_add, 1)
-
           p.write_text(s, encoding='utf-8')
           PY
 
