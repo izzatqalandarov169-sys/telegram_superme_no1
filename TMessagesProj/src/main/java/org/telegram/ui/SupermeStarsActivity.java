@@ -21,6 +21,7 @@ public class SupermeStarsActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
     private static final long MONTHLY_STARS = 500_000_000L;
     private static final long GRANT_PERIOD_MS = 30L * 24L * 60L * 60L * 1000L;
+    private static final String PREFS = "superme_gifts_v3";
     private SharedPreferences prefs;
     private TextView balance;
 
@@ -28,12 +29,10 @@ public class SupermeStarsActivity extends BaseFragment {
     public View createView(Context context) {
         actionBar.setTitle("Stars • Superme server");
         actionBar.setBackButtonDrawable(new BackDrawable(false));
-        prefs = context.getSharedPreferences("local_superme_stars", Context.MODE_PRIVATE);
+        prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
 
         long uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
-        if (uid == OWNER_ID) {
-            grantMonthlyStars(uid);
-        }
+        if (uid == OWNER_ID) grantMonthlyStars(uid);
 
         ScrollView scroll = new ScrollView(context);
         LinearLayout root = new LinearLayout(context);
@@ -82,15 +81,10 @@ public class SupermeStarsActivity extends BaseFragment {
     private void grantMonthlyStars(long uid) {
         long now = System.currentTimeMillis();
         long last = prefs.getLong("u_" + uid + "_last_stars_grant", 0L);
-        if (last != 0L && now - last < GRANT_PERIOD_MS) {
-            return;
-        }
+        if (last != 0L && now - last < GRANT_PERIOD_MS) return;
 
         long current = prefs.getLong("u_" + uid + "_stars", 0L);
-        long result = current > Long.MAX_VALUE - MONTHLY_STARS
-                ? Long.MAX_VALUE
-                : current + MONTHLY_STARS;
-
+        long result = current > Long.MAX_VALUE - MONTHLY_STARS ? Long.MAX_VALUE : current + MONTHLY_STARS;
         String history = prefs.getString("u_" + uid + "_stars_history", "");
         history += "\n+500 000 000 Stars (30 kunlik Superme bonus)";
 
@@ -102,9 +96,7 @@ public class SupermeStarsActivity extends BaseFragment {
     }
 
     private void updateBalance(long uid) {
-        if (balance != null) {
-            balance.setText("Balans: ⭐ " + prefs.getLong("u_" + uid + "_stars", 0L));
-        }
+        if (balance != null) balance.setText("Balans: ⭐ " + prefs.getLong("u_" + uid + "_stars", 0L));
     }
 
     private void showPackages(Context context, long uid) {
