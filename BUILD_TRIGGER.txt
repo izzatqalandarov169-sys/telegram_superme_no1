@@ -1,1 +1,2 @@
 Superme admin panel build verification trigger.
+Full build requested: gift catalog, admin panel, bot creator, profile IDs.
