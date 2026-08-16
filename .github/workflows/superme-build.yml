@@ -17,7 +17,6 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/superme-overlay
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/AdminPanelActivity.java /tmp/superme-overlay/
           cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java /tmp/superme-overlay/
           cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java /tmp/superme-overlay/
           cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java /tmp/superme-overlay/
