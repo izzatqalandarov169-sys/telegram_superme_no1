@@ -76,10 +76,10 @@ jobs:
               s = s.replace(marker2, add2, 1)
 
           p.write_text(s, encoding='utf-8')
+          PY
           test -f ./gradlew
           test -d ./TMessagesProj
           test -d ./TMessagesProj_App
-          PY
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
