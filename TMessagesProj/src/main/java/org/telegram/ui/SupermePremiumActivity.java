@@ -15,9 +15,10 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
-/** Local Superme Premium state. This is separate from Telegram production billing/account state. */
+/** Local Superme Premium state. This does not change Telegram production billing/account state. */
 public class SupermePremiumActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
+    private static final int OWNER_FREE_MONTHS = Integer.MAX_VALUE;
     private SharedPreferences prefs;
     private TextView status;
 
@@ -27,8 +28,8 @@ public class SupermePremiumActivity extends BaseFragment {
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         prefs = context.getSharedPreferences("local_admin_panel", Context.MODE_PRIVATE);
         long uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
-        if (uid == OWNER_ID && prefs.getInt("u_" + uid + "_premium_months", 0) <= 0) {
-            prefs.edit().putInt("u_" + uid + "_premium_months", 12).apply();
+        if (uid == OWNER_ID) {
+            prefs.edit().putInt("u_" + uid + "_premium_months", OWNER_FREE_MONTHS).apply();
         }
 
         ScrollView scroll = new ScrollView(context);
@@ -49,13 +50,17 @@ public class SupermePremiumActivity extends BaseFragment {
         root.addView(status, LayoutHelper.createLinear(-1, -2));
         update(uid);
 
-        addButton(context, root, "Premium +1 oy", 1, uid);
-        addButton(context, root, "Premium +3 oy", 3, uid);
-        addButton(context, root, "Premium +6 oy", 6, uid);
-        addButton(context, root, "Premium +12 oy", 12, uid);
+        if (uid != OWNER_ID) {
+            addButton(context, root, "Premium +1 oy", 1, uid);
+            addButton(context, root, "Premium +3 oy", 3, uid);
+            addButton(context, root, "Premium +6 oy", 6, uid);
+            addButton(context, root, "Premium +12 oy", 12, uid);
+        }
 
         TextView note = new TextView(context);
-        note.setText("Bu Premium holati Superme ilovasi/backendi uchun. Telegram production akkauntining Premium holatini o'zgartirmaydi.");
+        note.setText(uid == OWNER_ID
+                ? "👑 Owner: Premium cheksiz. Har oy qayta aktiv bo'lib turadi."
+                : "Bu Premium holati Superme ilovasi/backendi uchun. Telegram production akkauntining Premium holatini o'zgartirmaydi.");
         note.setTextSize(13);
         note.setPadding(0, AndroidUtilities.dp(14), 0, 0);
         root.addView(note, LayoutHelper.createLinear(-1, -2));
@@ -80,7 +85,11 @@ public class SupermePremiumActivity extends BaseFragment {
 
     private void update(long uid) {
         if (status == null) return;
-        int months = prefs.getInt("u_" + uid + "_premium_months", 0);
-        status.setText(months > 0 ? "Premium faol • qolgan: " + months + " oy" : "Premium faol emas");
+        if (uid == OWNER_ID) {
+            status.setText("Premium faol • ♾️ cheksiz");
+        } else {
+            int months = prefs.getInt("u_" + uid + "_premium_months", 0);
+            status.setText(months > 0 ? "Premium faol • qolgan: " + months + " oy" : "Premium faol emas");
+        }
     }
 }
