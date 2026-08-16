@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: telegram-gift-sync
+    runtime: node
+    plan: free
+    rootDir: services/telegram-gift-sync
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GIFT_SYNC_INTERVAL_MS
+        value: "300000"
