@@ -27,7 +27,8 @@ jobs:
             TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java \
             TMessagesProj/src/main/java/org/telegram/ui/GiftCatalog.java \
             TMessagesProj/src/main/java/org/telegram/ui/BotCreatorActivity.java \
-            TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java; do
+            TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java \
+            TMessagesProj/src/main/java/org/telegram/ui/SupermePremiumActivity.java; do
             test -f "$f"
             cp -a "$f" /tmp/superme-overlay/
           done
@@ -53,7 +54,7 @@ jobs:
           from pathlib import Path
           ui = Path('TMessagesProj/src/main/java/org/telegram/ui')
 
-          # Settings: gift store, admin panel, bot creator and local Stars wallet.
+          # Settings: add Superme screens while keeping the existing Telegram UI.
           p = ui / 'SettingsActivity.java'
           s = p.read_text(encoding='utf-8')
           marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
@@ -62,6 +63,12 @@ jobs:
               if marker not in s:
                   raise SystemExit('Settings insertion point not found')
               s = s.replace(marker, marker + additions, 1)
+
+          # Route the standard settings entries to the Superme local wallets/store.
+          s = s.replace('            case 11:\n                presentSettingFragment(new PremiumPreviewFragment("settings"));\n                break;', '            case 11:\n                presentSettingFragment(new SupermePremiumActivity());\n                break;', 1)
+          s = s.replace('            case 12:\n                presentSettingFragment(new StarsIntroActivity());\n                break;', '            case 12:\n                presentSettingFragment(new SupermeStarsActivity());\n                break;', 1)
+          s = s.replace('            case 16:\n                UserSelectorBottomSheet.open(0, BirthdayController.getInstance(UserConfig.selectedAccount).getState());\n                break;', '            case 16:\n                presentSettingFragment(new CustomGiftStoreActivity());\n                break;', 1)
+
           marker = '            case 17:\n'
           if 'case 27:' not in s:
               if marker not in s:
@@ -81,7 +88,7 @@ jobs:
               s = s.replace(needle, needle + '\n        ' + inject, 1)
           p.write_text(s, encoding='utf-8')
 
-          # Every user profile shows numeric ID and local clone gift count.
+          # Every user profile shows numeric ID when the upstream profile implementation exists.
           p = ui / 'ProfileActivity2.java'
           if p.exists():
               s = p.read_text(encoding='utf-8')
