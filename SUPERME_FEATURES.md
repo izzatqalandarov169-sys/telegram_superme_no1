@@ -1,7 +1,12 @@
 # Superme feature set
 
-The Android client is intended to retain its existing Telegram-style UI/features: chats and real-time messaging, contacts, profiles, settings, media/file sharing, stickers, premium stickers, notifications, privacy/security, storage/data controls, chat folders, language settings, and audio/video call UI.
+The Android client keeps the normal Telegram-style UI and core features.
 
-Stars, Premium and Gifts are intended to use the project's own backend services. The existing admin panel must remain untouched.
+## Superme additions
+- 🎁 Gift marketplace-style screen with search, price/model/background/pattern filters, 3-column cards and one-tap local purchase.
+- 🎁 Telegram gift-name catalog snapshot (149 gift types from the public April 2026 catalog) is shown in the local store; each entry is clickable.
+- 🎨 Gift creator remains available as the only creator/admin-style control: name, Stars price and 1–20 second video.
+- ⭐ Owner account `8572946823` has a local 999,000,000,000,000 Stars balance and purchases do not reduce it.
+- ⭐ Owner Premium is local and recurring/unlimited in the Superme app.
 
-Authentication must use the project's own authentication/backend flow rather than silently connecting a user's account to Telegram's production account service.
+The local Stars/Premium/Gift wallet is deliberately separate from Telegram production billing and does not charge or modify a real Telegram Stars balance.
