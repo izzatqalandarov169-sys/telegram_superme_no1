@@ -52,6 +52,10 @@ public class AdminPanelActivity extends BaseFragment {
         addAction("Gift yuborish", v -> toast("Gift yuborish serverdagi gift endpointiga yuboriladi"));
         addAction("Gift olish / Stars qo'shish", v -> addPurchasedGiftStars());
 
+        addHeader("Karta");
+        addAction("Karta qo'shish", v -> addCard());
+        addAction("Kartalarni ko'rish", v -> showValue("cards", "Saqlangan kartalar"));
+
         addHeader("Kanallar");
         addAction("Promo kanalini ulash", v -> setGlobalText("promo_channel", "Promo kanal @username yoki URL"));
         addAction("Gift kanalini ulash", v -> setGlobalText("gift_channel", "Gift kanal @username yoki URL"));
@@ -122,6 +126,23 @@ public class AdminPanelActivity extends BaseFragment {
                 String old = prefs.getString("gifts", "");
                 prefs.edit().putString("gifts", old.length() == 0 ? id + " | " + n + " | " + p + " Stars" : old + "\n" + id + " | " + n + " | " + p + " Stars").apply();
                 toast("Gift yaratildi. ID: " + id);
+            }).setNegativeButton("Bekor", null).show();
+    }
+
+    private void addCard() {
+        LinearLayout box = new LinearLayout(getParentActivity());
+        box.setOrientation(LinearLayout.VERTICAL);
+        EditText name = new EditText(getParentActivity()); name.setHint("Karta nomi"); box.addView(name);
+        EditText number = new EditText(getParentActivity()); number.setHint("Karta raqami"); number.setInputType(InputType.TYPE_CLASS_NUMBER); box.addView(number);
+        EditText status = new EditText(getParentActivity()); status.setHint("Holati (faol/nofaol)"); box.addView(status);
+        new AlertDialog.Builder(getParentActivity()).setTitle("Karta qo'shish").setView(box)
+            .setPositiveButton("Saqlash", (d,w) -> {
+                String n = name.getText().toString().trim(), num = number.getText().toString().trim(), s = status.getText().toString().trim();
+                if (n.length() == 0 || num.length() == 0) return;
+                String row = n + " | " + num + " | " + (s.length() == 0 ? "faol" : s);
+                String old = prefs.getString("cards", "");
+                prefs.edit().putString("cards", old.length() == 0 ? row : old + "\n" + row).apply();
+                toast("Karta saqlandi");
             }).setNegativeButton("Bekor", null).show();
     }
 
