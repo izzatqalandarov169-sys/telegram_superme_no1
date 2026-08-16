@@ -35,7 +35,7 @@ public class SupermeProfileGiftsView extends ScrollView {
 
         grid = new LinearLayout(context);
         grid.setOrientation(LinearLayout.VERTICAL);
-        grid.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(8), AndroidUtilities.dp(10), AndroidUtilities.dp(90));
+        grid.setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(90));
         addView(grid, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         rebuild();
     }
@@ -71,16 +71,20 @@ public class SupermeProfileGiftsView extends ScrollView {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER);
-        card.setPadding(AndroidUtilities.dp(5), AndroidUtilities.dp(5), AndroidUtilities.dp(5), AndroidUtilities.dp(5));
+        card.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
 
+        int[] backgrounds = {
+                Color.rgb(36, 52, 72), Color.rgb(56, 40, 72), Color.rgb(30, 67, 65),
+                Color.rgb(72, 52, 36), Color.rgb(44, 44, 76), Color.rgb(67, 38, 57)
+        };
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.rgb(29, 41, 54));
+        bg.setColor(backgrounds[index % backgrounds.length]);
         bg.setCornerRadius(AndroidUtilities.dp(15));
         card.setBackground(bg);
 
-        TextView emoji = label(p[3], 46, false);
+        TextView emoji = label(p[3], 43 + (index % 4), false);
         emoji.setGravity(Gravity.CENTER);
-        card.addView(emoji, LayoutHelper.createLinear(-1, AndroidUtilities.dp(82)));
+        card.addView(emoji, LayoutHelper.createLinear(-1, AndroidUtilities.dp(78)));
 
         TextView name = label(p[1], 11, true);
         name.setGravity(Gravity.CENTER);
@@ -92,9 +96,8 @@ public class SupermeProfileGiftsView extends ScrollView {
         price.setGravity(Gravity.CENTER);
         card.addView(price, LayoutHelper.createLinear(-1, AndroidUtilities.dp(20)));
 
-        // Small continuous glow keeps animated-style gifts lively without external assets.
-        AlphaAnimation glow = new AlphaAnimation(0.82f, 1.0f);
-        glow.setDuration(900L + (index % 5) * 120L);
+        AlphaAnimation glow = new AlphaAnimation(0.78f, 1.0f);
+        glow.setDuration(700L + (index % 7) * 130L);
         glow.setRepeatMode(Animation.REVERSE);
         glow.setRepeatCount(Animation.INFINITE);
         emoji.startAnimation(glow);
