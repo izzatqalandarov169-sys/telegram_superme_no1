@@ -17,15 +17,23 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
+/** Local Superme gift store. Does not invoke Telegram production gift/billing APIs. */
 public class CustomGiftStoreActivity extends BaseFragment {
+    private static final long OWNER_ID = 8572946823L;
+    private static final long OWNER_FREE_STARS = 999_000_000_000_000L;
     private LinearLayout root;
     private SharedPreferences prefs;
 
     @Override
     public View createView(Context context) {
-        actionBar.setTitle("Hadya sotib olish • 1200+");
+        actionBar.setTitle("Hadya sotib olish • Superme");
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         prefs = context.getSharedPreferences("local_admin_panel", Context.MODE_PRIVATE);
+        long userId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+        if (userId == OWNER_ID && prefs.getLong("u_" + userId + "_stars", 0L) < OWNER_FREE_STARS) {
+            prefs.edit().putLong("u_" + userId + "_stars", OWNER_FREE_STARS).apply();
+        }
+
         ScrollView scroll = new ScrollView(context);
         root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -33,7 +41,7 @@ public class CustomGiftStoreActivity extends BaseFragment {
         scroll.addView(root);
 
         TextView header = new TextView(context);
-        header.setText("🎁 1200 ta standart gift\n⭐ 15–5000 Stars oralig'ida\n🆔 Har bir giftning o'z ID'si bor");
+        header.setText("🎁 Superme gift katalogi\n⭐ Narxlar giftning o'z Stars qiymatida\n🆔 Har bir giftning o'z ID'si bor\n📱 Hammasi shu ilova ichida ishlaydi");
         header.setTextSize(16);
         header.setTypeface(null, Typeface.BOLD);
         header.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(8), AndroidUtilities.dp(10), AndroidUtilities.dp(12));
@@ -44,6 +52,12 @@ public class CustomGiftStoreActivity extends BaseFragment {
         mine.setAllCaps(false);
         mine.setOnClickListener(v -> showOwnedGifts(context));
         root.addView(mine, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48), 0, 0, 0, 6));
+
+        Button cancel = new Button(context);
+        cancel.setText("↩️ Giftni bekor qilish");
+        cancel.setAllCaps(false);
+        cancel.setOnClickListener(v -> cancelLastGift(context));
+        root.addView(cancel, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48), 0, 0, 0, 6));
 
         Button catalog = new Button(context);
         catalog.setText("🛍️ Katalogni ko'rsatish");
@@ -57,12 +71,12 @@ public class CustomGiftStoreActivity extends BaseFragment {
     }
 
     private void buildCatalog(Context context) {
-        while (root.getChildCount() > 3) root.removeViewAt(3);
+        while (root.getChildCount() > 4) root.removeViewAt(4);
         LinearLayout list = new LinearLayout(context);
         list.setOrientation(LinearLayout.VERTICAL);
         for (int id = 1; id <= GiftCatalog.COUNT; id++) addGiftCard(context, list, id);
         TextView footer = new TextView(context);
-        footer.setText("\nJami: " + GiftCatalog.COUNT + " ta gift");
+        footer.setText("\nJami: " + GiftCatalog.COUNT + " ta local gift.\nTelegram akkauntiga yuborilmaydi.");
         footer.setTextSize(14);
         footer.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(12), AndroidUtilities.dp(10), AndroidUtilities.dp(20));
         list.addView(footer);
@@ -113,5 +127,32 @@ public class CustomGiftStoreActivity extends BaseFragment {
         String gifts = prefs.getString("u_" + userId + "_owned_gifts", "");
         if (gifts.length() == 0) gifts = "Hozircha sizda gift yo'q.";
         new AlertDialog.Builder(context).setTitle("Mening giftlarim").setMessage(gifts).setPositiveButton("OK", null).show();
+    }
+
+    private void cancelLastGift(Context context) {
+        long userId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+        String key = "u_" + userId + "_owned_gifts";
+        String gifts = prefs.getString(key, "");
+        if (gifts.length() == 0) {
+            Toast.makeText(context, "Bekor qilinadigan gift yo'q", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] rows = gifts.split("\\n");
+        String last = rows[rows.length - 1];
+        String[] parts = last.split("\\|", -1);
+        long refund = parts.length >= 3 ? parse(parts[2]) : 0L;
+        StringBuilder remaining = new StringBuilder();
+        for (int i = 0; i < rows.length - 1; i++) {
+            if (i > 0) remaining.append('\n');
+            remaining.append(rows[i]);
+        }
+        long current = prefs.getLong("u_" + userId + "_stars", 0L);
+        long result = refund > Long.MAX_VALUE - current ? Long.MAX_VALUE : current + refund;
+        prefs.edit().putString(key, remaining.toString()).putLong("u_" + userId + "_stars", result).apply();
+        Toast.makeText(context, "Gift bekor qilindi. +" + refund + " Stars", Toast.LENGTH_SHORT).show();
+    }
+
+    private long parse(String s) {
+        try { return Math.max(0L, Long.parseLong(s.trim())); } catch (Exception e) { return 0L; }
     }
 }
