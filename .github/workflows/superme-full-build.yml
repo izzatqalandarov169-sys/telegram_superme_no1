@@ -1,0 +1,129 @@
+name: Superme Full Build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Superme overlay
+        uses: actions/checkout@v4
+
+      - name: Save overlay
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/superme-overlay
+          for f in \
+            TMessagesProj/src/main/java/org/telegram/ui/AdminPanelActivity.java \
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java \
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java \
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java \
+            TMessagesProj/src/main/java/org/telegram/ui/GiftCatalog.java \
+            TMessagesProj/src/main/java/org/telegram/ui/BotCreatorActivity.java; do
+            test -f "$f"
+            cp -a "$f" /tmp/superme-overlay/
+          done
+
+      - name: Checkout Telegram base
+        uses: actions/checkout@v4
+        with:
+          repository: DrKLO/Telegram
+          path: telegram-upstream
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Apply Superme features
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a telegram-upstream/. ./
+          rm -rf telegram-upstream
+          mkdir -p TMessagesProj/src/main/java/org/telegram/ui
+          cp -a /tmp/superme-overlay/. TMessagesProj/src/main/java/org/telegram/ui/
+
+          python3 - <<'PY'
+          from pathlib import Path
+          ui = Path('TMessagesProj/src/main/java/org/telegram/ui')
+
+          # Settings: gift store, admin panel and free clone bot creator.
+          p = ui / 'SettingsActivity.java'
+          s = p.read_text(encoding='utf-8')
+          marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
+          if 'Hadya (Superme server)' not in s:
+              if marker not in s:
+                  raise SystemExit('Settings insertion point not found')
+              s = s.replace(marker, marker + '\n        items.add(SettingCell.Factory.of(24, 0xFF6C63FF, 0xFF4B44CC, R.drawable.settings_gift, "Hadya (Superme server)"));\n        items.add(SettingCell.Factory.of(25, 0xFF6C63FF, 0xFF4B44CC, R.drawable.settings_gift, "Admin panel"));\n        items.add(SettingCell.Factory.of(26, 0xFF6C63FF, 0xFF4B44CC, R.drawable.settings_gift, "🤖 Bot yaratish"));', 1)
+          marker = '            case 17:\n'
+          if 'case 26:' not in s:
+              if marker not in s:
+                  raise SystemExit('Settings click insertion point not found')
+              s = s.replace(marker, '            case 26:\n                presentSettingFragment(new BotCreatorActivity());\n                break;\n            case 25:\n                presentSettingFragment(new AdminPanelActivity());\n                break;\n            case 24:\n                presentSettingFragment(new CustomGiftStoreActivity());\n                break;\n' + marker, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Admin panel defaults to the logged-in clone account, so self Stars/Premium actions work immediately.
+          p = ui / 'AdminPanelActivity.java'
+          s = p.read_text(encoding='utf-8')
+          needle = 'target.setInputType(InputType.TYPE_CLASS_NUMBER);'
+          if 'target.setText(String.valueOf(UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId()))' not in s:
+              if needle not in s:
+                  raise SystemExit('Admin target insertion point not found')
+              s = s.replace(needle, needle + '\n        target.setText(String.valueOf(UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId()));', 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Every user profile shows its numeric ID and clone gifts owned by that profile.
+          p = ui / 'ProfileActivity2.java'
+          s = p.read_text(encoding='utf-8')
+          needle = '    private static final int ID_NOTE = 11;'
+          if 'ID_SUPERME_USER_ID' not in s:
+              if needle not in s:
+                  raise SystemExit('Profile constants insertion point not found')
+              s = s.replace(needle, needle + '\n    private static final int ID_SUPERME_USER_ID = 12;\n    private static final int ID_SUPERME_GIFTS = 13;', 1)
+          needle = '            addUsernameRow(items);\n            if (userInfo != null) {'
+          if 'TextDetailCell.Factory.of(ID_SUPERME_USER_ID' not in s:
+              if needle not in s:
+                  raise SystemExit('Profile row insertion point not found')
+              replacement = '            addUsernameRow(items);\n            items.add(TextDetailCell.Factory.of(ID_SUPERME_USER_ID, String.valueOf(dialogId), "User ID"));\n            items.add(TextDetailCell.Factory.of(ID_SUPERME_GIFTS, String.valueOf(getSupermeGiftCount(dialogId)), "Superme Hadyalari"));\n            if (userInfo != null) {'
+              s = s.replace(needle, replacement, 1)
+          needle = '        if (item.id == ID_BIZ_HOURS) {'
+          if 'item.id == ID_SUPERME_USER_ID' not in s:
+              if needle not in s:
+                  raise SystemExit('Profile click insertion point not found')
+              replacement = '        if (item.id == ID_SUPERME_USER_ID) {\n            AndroidUtilities.addToClipboard(String.valueOf(dialogId));\n            BulletinFactory.of(ProfileActivity2.this).createCopyBulletin("User ID copied").show();\n        } else if (item.id == ID_SUPERME_GIFTS) {\n            showSupermeGifts();\n        } else if (item.id == ID_BIZ_HOURS) {'
+              s = s.replace(needle, replacement, 1)
+          marker = '    private boolean onLongClick(UItem item, View view, int position, float x, float y) {'
+          if 'private int getSupermeGiftCount(long userId)' not in s:
+              helper = '''    private int getSupermeGiftCount(long userId) {\n        try {\n            String gifts = getContext().getSharedPreferences("local_admin_panel", Context.MODE_PRIVATE).getString("u_" + userId + "_owned_gifts", "");\n            if (gifts == null || gifts.trim().isEmpty()) return 0;\n            return gifts.split("\\\\n").length;\n        } catch (Exception e) {\n            return 0;\n        }\n    }\n\n    private void showSupermeGifts() {\n        try {\n            String gifts = getContext().getSharedPreferences("local_admin_panel", Context.MODE_PRIVATE).getString("u_" + dialogId + "_owned_gifts", "");\n            if (gifts == null || gifts.trim().isEmpty()) gifts = "Hozircha gift yo'q.";\n            new android.app.AlertDialog.Builder(getParentActivity()).setTitle("Superme Hadyalari").setMessage(gifts).setPositiveButton("OK", null).show();\n        } catch (Exception e) {\n            FileLog.e(e);\n        }\n    }\n\n'''
+              if marker not in s:
+                  raise SystemExit('Profile helper insertion point not found')
+              s = s.replace(marker, helper + marker, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --no-daemon --max-workers=2
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: superme-full-debug-apk
+          path: TMessagesProj_App/build/outputs/apk/**/*.apk
+          if-no-files-found: error
