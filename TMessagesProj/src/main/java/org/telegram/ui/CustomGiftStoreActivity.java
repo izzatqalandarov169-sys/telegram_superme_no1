@@ -41,7 +41,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
     public View createView(Context context) {
         actionBar.setTitle("Hadya sotib olish");
         actionBar.setBackButtonDrawable(new BackDrawable(false));
-
         prefs = context.getSharedPreferences("local_admin_panel", Context.MODE_PRIVATE);
         uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
         ensureOwnerWallet();
@@ -55,13 +54,11 @@ public class CustomGiftStoreActivity extends BaseFragment {
         LinearLayout top = new LinearLayout(context);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(android.view.Gravity.CENTER_VERTICAL);
-
         TextView title = new TextView(context);
         title.setText("🎁  Hadya\n" + GiftCatalog.COUNT + " ta gift");
         title.setTextSize(20);
         title.setTypeface(null, Typeface.BOLD);
         top.addView(title, LayoutHelper.createLinear(0, -2, 1f));
-
         balance = new TextView(context);
         balance.setGravity(android.view.Gravity.RIGHT);
         balance.setTextSize(15);
@@ -99,7 +96,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) { rebuildGrid(context); }
             @Override public void afterTextChanged(Editable s) {}
         });
-
         rebuildGrid(context);
         fragmentView = scroll;
         return scroll;
@@ -112,7 +108,9 @@ public class CustomGiftStoreActivity extends BaseFragment {
     }
 
     private void updateBalance() {
-        if (balance != null) balance.setText("Balans\n⭐ " + prefs.getLong("u_" + uid + "_stars", 0L));
+        if (balance != null) {
+            balance.setText("Balans\n⭐ " + prefs.getLong("u_" + uid + "_stars", 0L));
+        }
     }
 
     private void addFilterButton(Context context, LinearLayout row, String label, int type) {
@@ -140,10 +138,7 @@ public class CustomGiftStoreActivity extends BaseFragment {
             title = "Naqsh";
             values = new String[]{"Hammasi", "Classic", "Holiday", "Love", "Galaxy", "Nature", "Festival"};
         }
-        new AlertDialog.Builder(context).setTitle(title).setItems(values, (d, which) -> {
-            if (which == 0) search.setText("");
-            else search.setText(values[which]);
-        }).show();
+        new AlertDialog.Builder(context).setTitle(title).setItems(values, (d, which) -> search.setText(which == 0 ? "" : values[which])).show();
     }
 
     private void rebuildGrid(Context context) {
@@ -155,7 +150,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
             String hay = (GiftCatalog.name(id) + " " + GiftCatalog.rarity(id) + " " + GiftCatalog.theme(id)).toLowerCase();
             if (q.length() == 0 || hay.contains(q) || String.valueOf(id).equals(q)) visibleIds.add(id);
         }
-
         LinearLayout row = null;
         for (int i = 0; i < visibleIds.size(); i++) {
             if (i % 3 == 0) {
@@ -179,7 +173,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
         card.setPadding(AndroidUtilities.dp(6), AndroidUtilities.dp(8), AndroidUtilities.dp(6), AndroidUtilities.dp(8));
-
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.rgb(31, 43, 56));
         bg.setCornerRadius(AndroidUtilities.dp(12));
@@ -220,7 +213,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
         buy.setTextSize(12);
         buy.setOnClickListener(v -> buyGift(context, id));
         card.addView(buy, LayoutHelper.createLinear(-1, AndroidUtilities.dp(42)));
-
         row.addView(card, LayoutHelper.createLinear(0, AndroidUtilities.dp(220), 1f, 0, 0, 0, 4));
     }
 
@@ -228,22 +220,21 @@ public class CustomGiftStoreActivity extends BaseFragment {
         ensureOwnerWallet();
         long price = GiftCatalog.price(id);
         long balanceNow = prefs.getLong("u_" + uid + "_stars", 0L);
-        if (uid == OWNER_ID) {
-            balanceNow = OWNER_FREE_STARS;
-            prefs.edit().putLong("u_" + uid + "_stars", OWNER_FREE_STARS).apply();
-        }
-        if (balanceNow < price) {
+        if (uid != OWNER_ID && balanceNow < price) {
             Toast.makeText(context, "Stars yetarli emas", Toast.LENGTH_SHORT).show();
             return;
         }
+        // Owner balance stays at 999 trillion, so every gift is effectively unlimited for the owner.
+        if (uid == OWNER_ID) {
+            prefs.edit().putLong("u_" + uid + "_stars", OWNER_FREE_STARS).apply();
+        } else {
+            prefs.edit().putLong("u_" + uid + "_stars", balanceNow - price).apply();
+        }
 
-        long next = balanceNow - price;
-        prefs.edit().putLong("u_" + uid + "_stars", next).apply();
         String key = "u_" + uid + "_owned_gifts";
         String giftRow = id + "|" + GiftCatalog.name(id) + "|" + price + "|" + GiftCatalog.emoji(id);
         String old = prefs.getString(key, "");
         prefs.edit().putString(key, old.length() == 0 ? giftRow : old + "\n" + giftRow).apply();
-
         updateBalance();
         Toast.makeText(context, "🎁 " + GiftCatalog.name(id) + " olindi", Toast.LENGTH_SHORT).show();
     }
