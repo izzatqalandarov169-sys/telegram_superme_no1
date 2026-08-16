@@ -16,11 +16,14 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 /** Local Superme Stars wallet. It never calls Telegram's production billing API. */
 public class SupermeStarsActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
     private static final long MONTHLY_STARS = 500_000_000L;
-    private static final long GRANT_PERIOD_MS = 30L * 24L * 60L * 60L * 1000L;
     private static final String PREFS = "superme_gifts_v3";
     private SharedPreferences prefs;
     private TextView balance;
@@ -30,7 +33,6 @@ public class SupermeStarsActivity extends BaseFragment {
         actionBar.setTitle("Stars • Superme server");
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-
         long uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
         if (uid == OWNER_ID) grantMonthlyStars(uid);
 
@@ -69,7 +71,7 @@ public class SupermeStarsActivity extends BaseFragment {
         root.addView(history, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48)));
 
         TextView note = new TextView(context);
-        note.setText("Birinchi kirishda ⭐ 500 000 000 beriladi, keyin har 30 kunda yana ⭐ 500 000 000 qo'shiladi. Bu faqat ilovaning lokal Superme balansi; haqiqiy Telegram Stars billingiga ulanmaydi.");
+        note.setText("Birinchi kirishda ⭐ 500 000 000 beriladi, keyin har oy yana ⭐ 500 000 000 qo'shiladi. Bu faqat ilovaning lokal Superme balansi; haqiqiy Telegram Stars billingiga ulanmaydi.");
         note.setTextSize(13);
         note.setPadding(0, AndroidUtilities.dp(14), 0, 0);
         root.addView(note, LayoutHelper.createLinear(-1, -2));
@@ -79,20 +81,17 @@ public class SupermeStarsActivity extends BaseFragment {
     }
 
     private void grantMonthlyStars(long uid) {
-        long now = System.currentTimeMillis();
-        long last = prefs.getLong("u_" + uid + "_last_stars_grant", 0L);
-        if (last != 0L && now - last < GRANT_PERIOD_MS) return;
+        String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
+        String last = prefs.getString("owner_grant_month", "");
+        if (month.equals(last)) return;
 
         long current = prefs.getLong("u_" + uid + "_stars", 0L);
         long result = current > Long.MAX_VALUE - MONTHLY_STARS ? Long.MAX_VALUE : current + MONTHLY_STARS;
         String history = prefs.getString("u_" + uid + "_stars_history", "");
-        history += "\n+500 000 000 Stars (30 kunlik Superme bonus)";
-
-        prefs.edit()
-                .putLong("u_" + uid + "_stars", result)
-                .putLong("u_" + uid + "_last_stars_grant", now)
-                .putString("u_" + uid + "_stars_history", history)
-                .apply();
+        history += "\n+500 000 000 Stars (" + month + " oylik Superme bonus)";
+        prefs.edit().putLong("u_" + uid + "_stars", result)
+                .putString("owner_grant_month", month)
+                .putString("u_" + uid + "_stars_history", history).apply();
     }
 
     private void updateBalance(long uid) {
@@ -102,15 +101,13 @@ public class SupermeStarsActivity extends BaseFragment {
     private void showPackages(Context context, long uid) {
         final String[] names = {"⭐ 100 Stars", "⭐ 500 Stars", "⭐ 1000 Stars", "⭐ 5000 Stars"};
         final long[] amounts = {100, 500, 1000, 5000};
-        new AlertDialog.Builder(context).setTitle("Stars paketlari")
-                .setItems(names, (d, which) -> {
-                    long amount = amounts[which];
-                    long current = prefs.getLong("u_" + uid + "_stars", 0L);
-                    long result = amount > Long.MAX_VALUE - current ? Long.MAX_VALUE : current + amount;
-                    prefs.edit().putLong("u_" + uid + "_stars", result)
-                            .putString("u_" + uid + "_stars_history", prefs.getString("u_" + uid + "_stars_history", "") + "\n+" + amount + " Stars (Superme paket)")
-                            .apply();
-                    updateBalance(uid);
-                }).show();
+        new AlertDialog.Builder(context).setTitle("Stars paketlari").setItems(names, (d, which) -> {
+            long amount = amounts[which];
+            long current = prefs.getLong("u_" + uid + "_stars", 0L);
+            long result = amount > Long.MAX_VALUE - current ? Long.MAX_VALUE : current + amount;
+            prefs.edit().putLong("u_" + uid + "_stars", result)
+                    .putString("u_" + uid + "_stars_history", prefs.getString("u_" + uid + "_stars_history", "") + "\n+" + amount + " Stars (Superme paket)").apply();
+            updateBalance(uid);
+        }).show();
     }
 }
