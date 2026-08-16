@@ -1,97 +1,117 @@
 package org.telegram.ui;
 
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Typeface;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.BackDrawable;
+import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
 public class CustomGiftStoreActivity extends BaseFragment {
     private LinearLayout root;
+    private SharedPreferences prefs;
 
-    private static final String[] BASE_GIFTS = {
-            "Homemade Cake", "Jelly Bunny", "Spiced Wine", "Santa Hat", "Berry Box",
-            "Astral Shard", "Bonded Ring", "Bunny Muffin", "Candy Cane", "Clover Pin",
-            "Crystal Ball", "Cupid Charm", "Desk Calendar", "Diamond Ring", "Durov's Cap",
-            "Electric Skull", "Eternal Rose", "Evil Eye", "Flying Broom", "Genie Lamp",
-            "Ginger Cookie", "Heart Locket", "Heroic Helmet", "Hex Pot", "Honeymoon Pod",
-            "Ion Gem", "Jack-in-the-Box", "Jester Hat", "Kissed Frog", "Lol Pop",
-            "Lunar Snake", "Magic Potion", "Mini Oscar", "Neko Helmet", "Nail Bracelet",
-            "Party Sparkler", "Perfume Bottle", "Precious Peach", "Record Player", "Restless Jar",
-            "Sakura Flower", "Sharp Tongue", "Signet Ring", "Skull Flower", "Snow Globe",
-            "Star Notepad", "Swiss Watch", "Tama Gadget", "Top Hat", "Toy Bear",
-            "Trapped Heart", "Valentine Box", "Vintage Cigar", "Voodoo Doll", "Whip Cupcake",
-            "Winter Wreath", "Witch Hat"
-    };
-
-    private static final String[] THEMES = {
-            "Classic", "Royal", "Galaxy", "Neon", "Crystal", "Golden", "Diamond", "Rainbow",
-            "Cyber", "Ocean", "Forest", "Desert", "Arctic", "Lunar", "Solar", "Magic",
-            "Fantasy", "Retro", "Pixel", "Cosmic", "Legendary", "Cute", "Luxury", "Festival"
-    };
-
-    @Override public View createView(Context context) {
-        actionBar.setTitle("Gifts • 1200+");
+    @Override
+    public View createView(Context context) {
+        actionBar.setTitle("Hadya sotib olish • 1200+");
         actionBar.setBackButtonDrawable(new BackDrawable(false));
+        prefs = context.getSharedPreferences("local_admin_panel", Context.MODE_PRIVATE);
+        ScrollView scroll = new ScrollView(context);
         root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
+        root.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(8), AndroidUtilities.dp(10), AndroidUtilities.dp(18));
+        scroll.addView(root);
 
-        TextView info = new TextView(context);
-        info.setText("🎁 1200+ custom gifts • Stars • Collectible Gifts • Crafting");
-        info.setTextSize(16);
-        info.setTypeface(null, Typeface.BOLD);
-        root.addView(info, LayoutHelper.createLinear(-1, -2));
+        TextView header = new TextView(context);
+        header.setText("🎁 1200 ta standart gift\n⭐ 15–5000 Stars oralig'ida\n🆔 Har bir giftning o'z ID'si bor");
+        header.setTextSize(16);
+        header.setTypeface(null, Typeface.BOLD);
+        header.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(8), AndroidUtilities.dp(10), AndroidUtilities.dp(12));
+        root.addView(header);
 
-        TextView note = new TextView(context);
-        note.setText("Bu katalog bizning custom ilovamiz uchun. Har bir giftning ID, nomi va Stars narxi admin paneldan boshqariladi.");
-        note.setPadding(0, AndroidUtilities.dp(8), 0, AndroidUtilities.dp(12));
-        root.addView(note, LayoutHelper.createLinear(-1, -2));
+        Button mine = new Button(context);
+        mine.setText("🎁 Mening giftlarim");
+        mine.setAllCaps(false);
+        mine.setOnClickListener(v -> showOwnedGifts(context));
+        root.addView(mine, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48), 0, 0, 0, 6));
 
-        int id = 1000;
-        for (String gift : BASE_GIFTS) {
-            addGift(context, id++, gift);
-        }
-        for (String theme : THEMES) {
-            for (String gift : BASE_GIFTS) {
-                if (id > 2200) break;
-                addGift(context, id++, theme + " " + gift);
-            }
-        }
+        Button catalog = new Button(context);
+        catalog.setText("🛍️ Katalogni ko'rsatish");
+        catalog.setAllCaps(false);
+        catalog.setOnClickListener(v -> buildCatalog(context));
+        root.addView(catalog, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48), 0, 0, 0, 6));
 
-        TextView collectible = new TextView(context);
-        collectible.setText("\n✨ Collectible / NFT\n• Upgrade gift\n• Rarity / attributes\n• Collections\n• Crafting: Uncommon / Rare / Epic / Legendary\n• Transfer / resale / offers\n• Auction support");
-        collectible.setTextSize(15);
-        root.addView(collectible, LayoutHelper.createLinear(-1, -2));
-
-        TextView load = new TextView(context);
-        load.setText("\n↻ Serverdagi giftlarni yangilash");
-        load.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(18), AndroidUtilities.dp(12), AndroidUtilities.dp(18));
-        load.setOnClickListener(v -> new Thread(() -> {
-            try {
-                CustomGiftApi.get("/api/gifts");
-                AndroidUtilities.runOnUIThread(() -> Toast.makeText(context, "Server gift katalogi yangilandi", Toast.LENGTH_SHORT).show());
-            } catch (Exception e) {
-                AndroidUtilities.runOnUIThread(() -> Toast.makeText(context, "Gift serveri bilan aloqa xatosi", Toast.LENGTH_SHORT).show());
-            }
-        }).start());
-        root.addView(load, LayoutHelper.createLinear(-1, -2));
-
-        fragmentView = root;
-        return root;
+        buildCatalog(context);
+        fragmentView = scroll;
+        return scroll;
     }
 
-    private void addGift(Context context, int id, String name) {
-        TextView item = new TextView(context);
-        item.setText("🎁  #" + id + "  " + name);
-        item.setTextSize(15);
-        item.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(10), AndroidUtilities.dp(12), AndroidUtilities.dp(10));
-        item.setOnClickListener(v -> Toast.makeText(context, "Gift #" + id + " tanlandi", Toast.LENGTH_SHORT).show());
-        root.addView(item, LayoutHelper.createLinear(-1, -2));
+    private void buildCatalog(Context context) {
+        while (root.getChildCount() > 3) root.removeViewAt(3);
+        LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        for (int id = 1; id <= GiftCatalog.COUNT; id++) addGiftCard(context, list, id);
+        TextView footer = new TextView(context);
+        footer.setText("\nJami: " + GiftCatalog.COUNT + " ta gift");
+        footer.setTextSize(14);
+        footer.setPadding(AndroidUtilities.dp(10), AndroidUtilities.dp(12), AndroidUtilities.dp(10), AndroidUtilities.dp(20));
+        list.addView(footer);
+        root.addView(list, LayoutHelper.createLinear(-1, -2));
+    }
+
+    private void addGiftCard(Context context, LinearLayout list, int id) {
+        LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(10), AndroidUtilities.dp(12), AndroidUtilities.dp(10));
+        TextView gift = new TextView(context);
+        gift.setText(GiftCatalog.emoji(id) + "\n" + GiftCatalog.name(id));
+        gift.setTextSize(18);
+        gift.setTypeface(null, Typeface.BOLD);
+        card.addView(gift);
+        TextView meta = new TextView(context);
+        meta.setText("ID: #" + id + "\nNarxi: ⭐ " + GiftCatalog.price(id) + "\nRarity: " + GiftCatalog.rarity(id));
+        meta.setTextSize(14);
+        meta.setPadding(0, AndroidUtilities.dp(5), 0, AndroidUtilities.dp(5));
+        card.addView(meta);
+        Button buy = new Button(context);
+        buy.setText("⭐ " + GiftCatalog.price(id) + " — Sotib olish");
+        buy.setAllCaps(false);
+        buy.setOnClickListener(v -> buyGift(context, id));
+        card.addView(buy);
+        list.addView(card, LayoutHelper.createLinear(-1, -2, 0, 0, 0, 4));
+    }
+
+    private void buyGift(Context context, int id) {
+        long userId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+        String starsKey = "u_" + userId + "_stars";
+        long balance = prefs.getLong(starsKey, 0L);
+        long price = GiftCatalog.price(id);
+        if (balance < price) {
+            Toast.makeText(context, "Stars yetarli emas. Kerak: " + price + ", bor: " + balance, Toast.LENGTH_LONG).show();
+            return;
+        }
+        prefs.edit().putLong(starsKey, balance - price).apply();
+        String key = "u_" + userId + "_owned_gifts";
+        String row = id + "|" + GiftCatalog.name(id) + "|" + price;
+        String old = prefs.getString(key, "");
+        prefs.edit().putString(key, old.length() == 0 ? row : old + "\n" + row).apply();
+        Toast.makeText(context, "🎁 " + GiftCatalog.name(id) + " olindi! -" + price + " Stars", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showOwnedGifts(Context context) {
+        long userId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+        String gifts = prefs.getString("u_" + userId + "_owned_gifts", "");
+        if (gifts.length() == 0) gifts = "Hozircha sizda gift yo'q.";
+        new AlertDialog.Builder(context).setTitle("Mening giftlarim").setMessage(gifts).setPositiveButton("OK", null).show();
     }
 }
