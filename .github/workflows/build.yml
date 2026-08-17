@@ -58,6 +58,15 @@ jobs:
           test -d ./TMessagesProj
           test -d ./TMessagesProj_App
 
+      - name: Verify removed Superme Settings shortcuts
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'Hadya \(Superme server\)|Stars \(Superme server\)|Premium \(Superme server\)|Bot yaratish' TMessagesProj/src/main/java TMessagesProj_App/src/main/java 2>/dev/null; then
+            echo 'ERROR: obsolete Superme Settings shortcuts are still present in source.'
+            exit 1
+          fi
+
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
