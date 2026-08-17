@@ -20,11 +20,12 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-/** Superme Stars balance used by the app's gift system. */
+/** Superme Stars balance used by the app's local wallet UI. */
 public class SupermeStarsActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
     private static final long MONTHLY_STARS = 500_000_000L;
     private static final String PREFS = "superme_gifts_v3";
+    private static final String INITIAL_SEED = "owner_initial_seed_v1";
     private SharedPreferences prefs;
     private TextView balance;
 
@@ -34,7 +35,9 @@ public class SupermeStarsActivity extends BaseFragment {
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         long uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
-        if (uid == OWNER_ID) grantOwnerStars(uid);
+        if (uid == OWNER_ID) {
+            ensureOwnerBalance(uid);
+        }
 
         ScrollView scroll = new ScrollView(context);
         LinearLayout root = new LinearLayout(context);
@@ -78,6 +81,27 @@ public class SupermeStarsActivity extends BaseFragment {
 
         fragmentView = scroll;
         return scroll;
+    }
+
+    private void ensureOwnerBalance(long uid) {
+        String balanceKey = "u_" + uid + "_stars";
+        String monthKey = "u_" + uid + "_stars_month_grant";
+        long current = prefs.getLong(balanceKey, 0L);
+
+        // One-time migration for installs where the old monthly marker existed but
+        // the local balance was never initialized in the current Stars screen.
+        if (current == 0L && !prefs.getBoolean(INITIAL_SEED, false)) {
+            String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
+            prefs.edit()
+                    .putLong(balanceKey, MONTHLY_STARS)
+                    .putString(monthKey, month)
+                    .putBoolean(INITIAL_SEED, true)
+                    .putString("u_" + uid + "_stars_history", prefs.getString("u_" + uid + "_stars_history", "") + "\n+500 000 000 Stars (initial/monthly bonus " + month + ")")
+                    .apply();
+            return;
+        }
+
+        grantOwnerStars(uid);
     }
 
     private void grantOwnerStars(long uid) {
