@@ -23,9 +23,7 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -36,7 +34,6 @@ import java.util.Locale;
  */
 public class CustomGiftStoreActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
-    private static final long MONTHLY_OWNER_STARS = 500_000_000L;
     private static final String PREFS = "superme_gifts_v3";
     private static final int PAGE_SIZE = 60;
 
@@ -56,7 +53,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
-        ensureOwnerWallet();
 
         ScrollView scroll = new ScrollView(context);
         LinearLayout root = new LinearLayout(context);
@@ -134,15 +130,6 @@ public class CustomGiftStoreActivity extends BaseFragment {
         b.setAllCaps(false);
         b.setTextSize(13);
         return b;
-    }
-
-    private void ensureOwnerWallet() {
-        if (uid != OWNER_ID) return;
-        long current = prefs.getLong("u_" + uid + "_stars", 0L);
-        // Keep the owner's local Superme wallet at a usable minimum of 500M Stars.
-        if (current < MONTHLY_OWNER_STARS) {
-            prefs.edit().putLong("u_" + uid + "_stars", MONTHLY_OWNER_STARS).apply();
-        }
     }
 
     private void updateBalance() {
