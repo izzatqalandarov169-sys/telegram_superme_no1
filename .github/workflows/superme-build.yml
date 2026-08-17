@@ -45,18 +45,38 @@ jobs:
           from pathlib import Path
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java')
           s = p.read_text(encoding='utf-8')
-          marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
-          add = marker + '\n        items.add(SettingCell.Factory.of(24, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, "Hadya (Superme server)"));'
+
+          gift_marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
+          gift_add = gift_marker + '\n        items.add(SettingCell.Factory.of(24, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, "Hadya (Superme server)"));'
           if 'Hadya (Superme server)' not in s:
-              if marker not in s:
+              if gift_marker not in s:
                   raise SystemExit('Settings gift insertion point not found')
-              s = s.replace(marker, add, 1)
-          marker2 = '            case 17:\n'
-          add2 = '            case 24:\n                presentSettingFragment(new CustomGiftStoreActivity());\n                break;\n' + marker2
+              s = s.replace(gift_marker, gift_add, 1)
+
+          stars_anchor = 'items.add(SettingCell.Factory.of(24, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, "Hadya (Superme server)"));'
+          stars_add = stars_anchor + '\n        items.add(SettingCell.Factory.of(25, 0xFFF3C23C, 0xFFE0A800, R.drawable.settings_gift, "Stars (Superme server)"));\n        items.add(SettingCell.Factory.of(26, 0xFFB96BFF, 0xFF7A3FB8, R.drawable.settings_gift, "Premium (Superme server)"));'
+          if 'Stars (Superme server)' not in s:
+              s = s.replace(stars_anchor, stars_add, 1)
+
+          case_anchor = '            case 17:\n'
+          case_add = ('            case 24:\n'
+                       '                presentSettingFragment(new CustomGiftStoreActivity());\n'
+                       '                break;\n'
+                       '            case 25:\n'
+                       '                presentSettingFragment(new SupermeStarsActivity());\n'
+                       '                break;\n'
+                       '            case 26:\n'
+                       '                presentSettingFragment(new SupermePremiumActivity());\n'
+                       '                break;\n' + case_anchor)
           if 'case 24:' not in s:
-              if marker2 not in s:
+              if case_anchor not in s:
                   raise SystemExit('Settings click insertion point not found')
-              s = s.replace(marker2, add2, 1)
+              s = s.replace(case_anchor, case_add, 1)
+
+          # Fail the build if the three Superme entry points are not actually wired.
+          for required in ('Hadya (Superme server)', 'Stars (Superme server)', 'Premium (Superme server)', 'case 24:', 'case 25:', 'case 26:'):
+              if required not in s:
+                  raise SystemExit('Superme settings wiring missing: ' + required)
           p.write_text(s, encoding='utf-8')
           PY
           test -f ./gradlew
