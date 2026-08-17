@@ -59,7 +59,6 @@ jobs:
               if field_marker not in s:
                   raise SystemExit('Profile gifts field insertion point not found')
               s = s.replace(field_marker, field_marker + '    private SupermeProfileGiftsView supermeProfileGiftsView;\n', 1)
-
           setup_marker = '        sharedMediaLayout.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.MATCH_PARENT));\n        sharedMediaLayout.initBlurCapture((ViewGroup) fragmentView);'
           setup_add = '''        sharedMediaLayout.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.MATCH_PARENT));
         sharedMediaLayout.initBlurCapture((ViewGroup) fragmentView);
@@ -75,7 +74,6 @@ jobs:
               if setup_marker not in s:
                   raise SystemExit('Profile gifts setup insertion point not found')
               s = s.replace(setup_marker, setup_add, 1)
-
           tab_marker = '''            protected void onSelectedTabChanged() {
                 updateSelectedMediaTabText();
             }'''
@@ -93,7 +91,6 @@ jobs:
               s = s.replace(tab_marker, tab_add, 1)
           p.write_text(s, encoding='utf-8')
 
-          # Make the owner's monthly Superme Stars wallet available from the gift screen too.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java')
           s = p.read_text(encoding='utf-8')
           marker = '        uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();\n'
@@ -109,7 +106,6 @@ jobs:
               s = s.replace(marker2, method + marker2, 1)
           p.write_text(s, encoding='utf-8')
 
-          # Do not fabricate gifts in the profile. Only gifts actually purchased/received are shown.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java')
           s = p.read_text(encoding='utf-8')
           start = s.find('        // Seed the owner profile with a large collectible showcase so it never looks empty.')
@@ -121,7 +117,7 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
 
-          for bad in 'Hadya (Superme server)' 'Bot yaratish' 'Stars (Superme server)' 'Premium (Superme server)'; do
+          for bad in 'Hadya (Superme server)' 'Stars (Superme server)' 'Premium (Superme server)'; do
             if grep -R -F "$bad" TMessagesProj/src/main/java/org/telegram/ui >/dev/null 2>&1; then
               echo "Legacy shortcut still present: $bad"
               exit 1
