@@ -54,29 +54,6 @@ jobs:
           rm -rf telegram-upstream
           mkdir -p TMessagesProj/src/main/java/org/telegram/ui
           cp -a /tmp/superme-overlay/. TMessagesProj/src/main/java/org/telegram/ui/
-          python3 - <<'PY'
-          from pathlib import Path
-
-          ui = Path('TMessagesProj/src/main/java/org/telegram/ui')
-          p = ui / 'SettingsActivity.java'
-          s = p.read_text(encoding='utf-8')
-
-          marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
-          if 'Hadya (Superme server)' not in s:
-              if marker not in s:
-                  raise SystemExit('Settings gift insertion point not found')
-              add = marker + '\n        items.add(SettingCell.Factory.of(24, 0xFF6C63FF, 0xFF4B44CC, R.drawable.settings_gift, "Hadya (Superme server)"));\n        items.add(SettingCell.Factory.of(26, 0xFF6C63FF, 0xFF4B44CC, R.drawable.settings_gift, "🤖 Bot yaratish"));\n        items.add(SettingCell.Factory.of(27, 0xFFFFC107, 0xFFFF9800, R.drawable.settings_gift, "⭐ Stars (Superme server)"));\n        items.add(SettingCell.Factory.of(28, 0xFF7C4DFF, 0xFF512DA8, R.drawable.settings_gift, "⭐ Premium (Superme server)"));'
-              s = s.replace(marker, add, 1)
-
-          marker2 = '            case 17:\n'
-          if 'case 28:' not in s:
-              if marker2 not in s:
-                  raise SystemExit('Settings click insertion point not found')
-              add2 = '            case 28:\n                presentSettingFragment(new SupermePremiumActivity());\n                break;\n            case 27:\n                presentSettingFragment(new SupermeStarsActivity());\n                break;\n            case 26:\n                presentSettingFragment(new BotCreatorActivity());\n                break;\n            case 24:\n                presentSettingFragment(new CustomGiftStoreActivity());\n                break;\n' + marker2
-              s = s.replace(marker2, add2, 1)
-
-          p.write_text(s, encoding='utf-8')
-          PY
           test -f ./gradlew
           test -d ./TMessagesProj
           test -d ./TMessagesProj_App
