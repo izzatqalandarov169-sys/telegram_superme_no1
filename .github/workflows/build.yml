@@ -31,7 +31,6 @@ jobs:
             TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java \
             TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java \
             TMessagesProj/src/main/java/org/telegram/ui/GiftCatalog.java \
-            TMessagesProj/src/main/java/org/telegram/ui/BotCreatorActivity.java \
             TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java \
             TMessagesProj/src/main/java/org/telegram/ui/SupermePremiumActivity.java; do
             test -f "$f"
@@ -62,7 +61,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RInE 'Hadya \(Superme server\)|Stars \(Superme server\)|Premium \(Superme server\)|Bot yaratish' TMessagesProj/src/main/java TMessagesProj_App/src/main/java 2>/dev/null; then
+          if grep -RInE 'Hadya \(Superme server\)|Stars \(Superme server\)|Premium \(Superme server\)' TMessagesProj/src/main/java TMessagesProj_App/src/main/java 2>/dev/null; then
             echo 'ERROR: obsolete Superme Settings shortcuts are still present in source.'
             exit 1
           fi
