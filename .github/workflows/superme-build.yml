@@ -1,23 +1,37 @@
 name: Superme APK Build
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Checkout Superme repository
         uses: actions/checkout@v4
 
-      - name: Save Superme overlay files
+      - name: Save complete Superme overlay
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/superme-overlay
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java /tmp/superme-overlay/
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java /tmp/superme-overlay/
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java /tmp/superme-overlay/
+          for f in \
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java \
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java \
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java \
+            TMessagesProj/src/main/java/org/telegram/ui/GiftCatalog.java \
+            TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java \
+            TMessagesProj/src/main/java/org/telegram/ui/SupermePremiumActivity.java \
+            TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java; do
+            test -f "$f"
+            cp -a "$f" /tmp/superme-overlay/
+          done
 
       - name: Checkout full Telegram Android source
         uses: actions/checkout@v4
@@ -27,7 +41,7 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Apply Telegram base and Superme overlay
+      - name: Apply Telegram base and complete Superme overlay
         shell: bash
         run: |
           set -euo pipefail
@@ -35,26 +49,56 @@ jobs:
           rm -rf telegram-upstream
           mkdir -p TMessagesProj/src/main/java/org/telegram/ui
           cp -a /tmp/superme-overlay/. TMessagesProj/src/main/java/org/telegram/ui/
+
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java')
+
+          p = Path('TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java')
           s = p.read_text(encoding='utf-8')
-          marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
-          add = marker + '\n        items.add(SettingCell.Factory.of(24, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, "Hadya (Superme server)"));'
-          if 'Hadya (Superme server)' not in s:
-              if marker not in s:
-                  raise SystemExit('Settings gift insertion point not found')
-              s = s.replace(marker, add, 1)
-          marker2 = '            case 17:\n'
-          add2 = '            case 24:\n                presentSettingFragment(new CustomGiftStoreActivity());\n                break;\n' + marker2
-          if 'case 24:' not in s:
-              if marker2 not in s:
-                  raise SystemExit('Settings click insertion point not found')
-              s = s.replace(marker2, add2, 1)
+          field_marker = '    public ProfileGiftsView giftsView;\n'
+          if 'private SupermeProfileGiftsView supermeProfileGiftsView;' not in s:
+              if field_marker not in s:
+                  raise SystemExit('Profile gifts field insertion point not found')
+              s = s.replace(field_marker, field_marker + '    private SupermeProfileGiftsView supermeProfileGiftsView;\n', 1)
+
+          setup_marker = '        sharedMediaLayout.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.MATCH_PARENT));\n        sharedMediaLayout.initBlurCapture((ViewGroup) fragmentView);'
+          setup_add = '''        sharedMediaLayout.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.MATCH_PARENT));
+        sharedMediaLayout.initBlurCapture((ViewGroup) fragmentView);
+        supermeProfileGiftsView = new SupermeProfileGiftsView(context);
+        FrameLayout.LayoutParams supermeGiftsLp = LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT);
+        supermeGiftsLp.topMargin = dp(54);
+        frameLayout.addView(supermeProfileGiftsView, supermeGiftsLp);
+        boolean showSupermeGifts = sharedMediaLayout.getClosestTab() == SharedMediaLayout.TAB_GIFTS;
+        supermeProfileGiftsView.setVisibility(showSupermeGifts ? View.VISIBLE : View.GONE);
+        if (showSupermeGifts) supermeProfileGiftsView.rebuild();
+'''
+          if 'supermeProfileGiftsView = new SupermeProfileGiftsView(context);' not in s:
+              if setup_marker not in s:
+                  raise SystemExit('Profile gifts setup insertion point not found')
+              s = s.replace(setup_marker, setup_add, 1)
+
+          tab_marker = '''            protected void onSelectedTabChanged() {
+                updateSelectedMediaTabText();
+            }'''
+          tab_add = '''            protected void onSelectedTabChanged() {
+                updateSelectedMediaTabText();
+                if (supermeProfileGiftsView != null) {
+                    boolean show = getSelectedTab() == SharedMediaLayout.TAB_GIFTS;
+                    supermeProfileGiftsView.setVisibility(show ? View.VISIBLE : View.GONE);
+                    if (show) supermeProfileGiftsView.rebuild();
+                }
+            }'''
+          if 'boolean show = getSelectedTab() == SharedMediaLayout.TAB_GIFTS;' not in s:
+              if tab_marker not in s:
+                  raise SystemExit('Profile tab callback insertion point not found')
+              s = s.replace(tab_marker, tab_add, 1)
           p.write_text(s, encoding='utf-8')
           PY
-          test -f ./gradlew
-          test -d ./TMessagesProj
+
+          grep -q 'MONTHLY_STARS = 500_000_000L' TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java
+          grep -q 'COUNT = 150000' TMessagesProj/src/main/java/org/telegram/ui/GiftCatalog.java
+          grep -q 'if (i == 49) return 8_900_000L' TMessagesProj/src/main/java/org/telegram/ui/GiftCatalog.java
+          grep -q 'current - price' TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -70,7 +114,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build Telegram-compatible debug APK
-        run: ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace
+        run: ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --no-daemon --max-workers=2
 
       - name: Verify APK exists
         shell: bash
