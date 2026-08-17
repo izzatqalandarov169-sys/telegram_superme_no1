@@ -41,6 +41,45 @@ jobs:
           rm -rf telegram-upstream
           mkdir -p TMessagesProj/src/main/java/org/telegram/ui
           cp -a /tmp/superme-overlay/. TMessagesProj/src/main/java/org/telegram/ui/
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Make the owner's 500M monthly Superme Stars wallet available from the gift screen too.
+          p = Path('TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java')
+          s = p.read_text(encoding='utf-8')
+          marker = '        uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();\n'
+          if 'ensureOwnerBalance(uid);' not in s:
+              if marker not in s:
+                  raise SystemExit('CustomGiftStoreActivity UID marker not found')
+              s = s.replace(marker, marker + '        ensureOwnerBalance(uid);\n', 1)
+          marker2 = '    private void updateBalance() {\n'
+          method = '''    private void ensureOwnerBalance(long userId) {\n        if (userId != OWNER_ID) return;\n        String balanceKey = "u_" + userId + "_stars";\n        String monthKey = "u_" + userId + "_stars_month_grant";\n        String seedKey = "owner_initial_seed_v1";\n        long current = prefs.getLong(balanceKey, 0L);\n        String month = new java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(new java.util.Date());\n        if (current == 0L && !prefs.getBoolean(seedKey, false)) {\n            prefs.edit().putLong(balanceKey, 500_000_000L).putString(monthKey, month).putBoolean(seedKey, true).apply();\n            return;\n        }\n        if (!month.equals(prefs.getString(monthKey, ""))) {\n            long next = current > Long.MAX_VALUE - 500_000_000L ? Long.MAX_VALUE : current + 500_000_000L;\n            prefs.edit().putLong(balanceKey, next).putString(monthKey, month).apply();\n        }\n    }\n\n'''
+          if 'private void ensureOwnerBalance(long userId)' not in s:
+              if marker2 not in s:
+                  raise SystemExit('CustomGiftStoreActivity balance marker not found')
+              s = s.replace(marker2, method + marker2, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # Do not fabricate gifts in the profile. Only gifts actually purchased/received are shown.
+          p = Path('TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java')
+          s = p.read_text(encoding='utf-8')
+          start = s.find('        // Seed the owner profile with a large collectible showcase so it never looks empty.')
+          if start != -1:
+              end = s.find('        if (rows.trim().isEmpty()) {', start)
+              if end == -1:
+                  raise SystemExit('Profile gift seed end marker not found')
+              s = s[:start] + s[end:]
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          # These four legacy Superme Settings shortcuts must never make it into the final APK source.
+          for bad in 'Hadya (Superme server)' 'Bot yaratish' 'Stars (Superme server)' 'Premium (Superme server)'; do
+            if grep -R -F "$bad" TMessagesProj/src/main/java/org/telegram/ui >/dev/null 2>&1; then
+              echo "Legacy shortcut still present: $bad"
+              exit 1
+            fi
+          done
           test -f ./gradlew
           test -d ./TMessagesProj
 
