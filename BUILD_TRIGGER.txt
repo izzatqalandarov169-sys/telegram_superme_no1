@@ -2,3 +2,4 @@ Superme build trigger: gift marketplace UI, Telegram gift catalog, local unlimit
 Build trigger: 2026-08-17
 Verified overlay build: 500M monthly Stars, 150000 gifts, price/balance checks.
 Final verified build trigger.
+Stable full workflow retry.
