@@ -16,6 +16,10 @@ import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 /** Local Superme Stars wallet. It never calls Telegram's production billing API. */
 public class SupermeStarsActivity extends BaseFragment {
     private static final long OWNER_ID = 8572946823L;
@@ -67,7 +71,7 @@ public class SupermeStarsActivity extends BaseFragment {
         root.addView(history, LayoutHelper.createLinear(-1, AndroidUtilities.dp(48)));
 
         TextView note = new TextView(context);
-        note.setText("Birinchi kirishda ⭐ 500 000 000 beriladi. Bu faqat ilovaning lokal Superme balansi; haqiqiy Telegram Stars billingiga ulanmaydi.");
+        note.setText("Har kalendar oyida ⭐ 500 000 000 Superme Stars bonus beriladi. Bu faqat ilovaning lokal Superme balansi; haqiqiy Telegram Stars billingiga ulanmaydi.");
         note.setTextSize(13);
         note.setPadding(0, AndroidUtilities.dp(14), 0, 0);
         root.addView(note, LayoutHelper.createLinear(-1, -2));
@@ -77,12 +81,18 @@ public class SupermeStarsActivity extends BaseFragment {
     }
 
     private void grantOwnerStars(long uid) {
+        String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
+        String key = "u_" + uid + "_stars_month_grant";
+        String grantedMonth = prefs.getString(key, "");
+        if (month.equals(grantedMonth)) return;
+
         long current = prefs.getLong("u_" + uid + "_stars", 0L);
-        if (current < MONTHLY_STARS) {
-            prefs.edit().putLong("u_" + uid + "_stars", MONTHLY_STARS)
-                    .putString("u_" + uid + "_stars_history", prefs.getString("u_" + uid + "_stars_history", "") + "\n+500 000 000 Stars (Superme bonus)")
-                    .apply();
-        }
+        long result = current > Long.MAX_VALUE - MONTHLY_STARS ? Long.MAX_VALUE : current + MONTHLY_STARS;
+        prefs.edit()
+                .putLong("u_" + uid + "_stars", result)
+                .putString(key, month)
+                .putString("u_" + uid + "_stars_history", prefs.getString("u_" + uid + "_stars_history", "") + "\n+500 000 000 Stars (Superme monthly bonus " + month + ")")
+                .apply();
     }
 
     private void updateBalance(long uid) {
