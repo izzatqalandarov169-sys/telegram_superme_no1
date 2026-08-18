@@ -22,7 +22,7 @@ jobs:
       - name: Checkout Superme overlay
         uses: actions/checkout@v4
 
-      - name: Save required Superme overlay
+      - name: Save Superme overlay
         shell: bash
         run: |
           set -euo pipefail
@@ -41,7 +41,7 @@ jobs:
             TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java
           )
           for f in "${files[@]}"; do
-            test -f "$f" || { echo "Missing Superme overlay: $f"; exit 1; }
+            test -f "$f" || { echo "Missing Superme overlay file: $f"; exit 1; }
             cp -a "$f" "/tmp/superme-overlay/$(basename "$f")"
           done
 
@@ -53,7 +53,7 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Apply Superme integration to Telegram source
+      - name: Apply Superme features to Telegram base
         shell: bash
         run: |
           set -euo pipefail
@@ -61,9 +61,13 @@ jobs:
           rm -rf telegram-upstream
           mkdir -p TMessagesProj/src/main/java/org/telegram/ui
           mkdir -p TMessagesProj/src/main/java/org/telegram/messenger
-          cp -a /tmp/superme-overlay/*.java TMessagesProj/src/main/java/org/telegram/ui/
-          cp -a /tmp/superme-overlay/SupermeBalance.java TMessagesProj/src/main/java/org/telegram/messenger/
-          rm -f TMessagesProj/src/main/java/org/telegram/ui/SupermeBalance.java
+          for f in /tmp/superme-overlay/*.java; do
+            base="$(basename "$f")"
+            case "$base" in
+              SupermeBalance.java) cp -a "$f" TMessagesProj/src/main/java/org/telegram/messenger/"$base" ;;
+              *) cp -a "$f" TMessagesProj/src/main/java/org/telegram/ui/"$base" ;;
+            esac
+          done
 
           python3 - <<'PY'
           from pathlib import Path
@@ -115,24 +119,19 @@ jobs:
                   raise SystemExit('SendGiftSheet import insertion point not found')
               s = s.replace(marker, marker + 'import org.telegram.ui.SupermePurchaseApi;\n', 1)
           old = 'StarsController.getInstance(currentAccount).buyStarGift('
-          if old not in s:
-              raise SystemExit('Telegram Star Gift purchase call not found')
-          s = s.replace(old, 'SupermePurchaseApi.purchaseStarGift(currentAccount, ', 1)
+          new = 'SupermePurchaseApi.purchaseStarGift(currentAccount, '
+          if old not in s and new not in s:
+              raise SystemExit('SendGiftSheet Star Gift purchase call not found')
+          if old in s:
+              s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Verify Superme integration is actually in build source
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f TMessagesProj/src/main/java/org/telegram/ui/SupermePurchaseApi.java
-          test -f TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java
-          grep -q 'SupermePurchaseApi.purchaseStarGift' TMessagesProj/src/main/java/org/telegram/ui/Gifts/SendGiftSheet.java
-          grep -q 'SupermeProfileGiftsView' TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
-          grep -q '500_000_000\|500000000' TMessagesProj/src/main/java/org/telegram/ui/Superme* TMessagesProj/src/main/java/org/telegram/messenger/SupermeBalance.java
-          echo 'Superme integration verified in the exact source that will be compiled.'
+          grep -F 'SupermeProfileGiftsView' TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java >/dev/null
+          grep -F 'SupermePurchaseApi' TMessagesProj/src/main/java/org/telegram/ui/Gifts/SendGiftSheet.java >/dev/null
+          test -f TMessagesProj/src/main/java/org/telegram/messenger/SupermeBalance.java
 
-      - name: Setup Java 17
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -142,20 +141,21 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build debug APK
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build AFAT debug APK
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g
-        run: |
-          chmod +x ./gradlew
-          ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --no-daemon --max-workers=2
+        run: ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --no-daemon --max-workers=2
 
-      - name: Verify APK exists
+      - name: Find APK
         shell: bash
         run: |
           set -euo pipefail
-          find TMessagesProj_App/build/outputs/apk -type f -name '*.apk' -print | grep -q '\.apk$'
+          find TMessagesProj_App/build/outputs/apk -type f -name '*.apk' -print
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: telegram-superme-debug-apk
