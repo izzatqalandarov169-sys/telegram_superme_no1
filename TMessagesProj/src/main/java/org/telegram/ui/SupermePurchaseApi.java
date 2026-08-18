@@ -25,17 +25,43 @@ public final class SupermePurchaseApi {
             if (whenDone != null) whenDone.run(false, "INVALID_GIFT");
             return;
         }
+        purchaseStarGift(
+                String.valueOf(gift.id),
+                gift.stars,
+                gift.title == null ? "Gift" : gift.title,
+                anonymous,
+                upgraded,
+                dialogId,
+                message == null || message.text == null ? "" : message.text,
+                whenDone
+        );
+    }
 
-        final String messageText = message == null || message.text == null ? "" : message.text;
-        final String safeTitle = gift.title == null ? "Gift" : gift.title;
+    /** Purchase bridge used by the Superme GiftSheet when upstream GiftSheet is unavailable. */
+    public static void purchaseStarGift(
+            String giftId,
+            long stars,
+            String title,
+            boolean anonymous,
+            boolean upgraded,
+            long dialogId,
+            String messageText,
+            Utilities.Callback2<Boolean, String> whenDone
+    ) {
+        if (giftId == null || giftId.trim().isEmpty() || stars <= 0 || dialogId == 0) {
+            if (whenDone != null) whenDone.run(false, "INVALID_GIFT");
+            return;
+        }
+
+        final String safeTitle = title == null || title.isEmpty() ? "Gift" : title;
         final String json = "{"
-                + "\"gift_id\":" + gift.id + ","
-                + "\"stars\":" + gift.stars + ","
-                + "\"recipient_id\":" + dialogId + ","
+                + "\"gift_id\":\"" + escape(giftId) + "\","
+                + "\"stars\":" + stars + ","
+                + "\"recipient_id\":\"" + dialogId + "\","
                 + "\"anonymous\":" + anonymous + ","
                 + "\"upgraded\":" + upgraded + ","
                 + "\"gift_title\":\"" + escape(safeTitle) + "\","
-                + "\"message\":\"" + escape(messageText) + "\""
+                + "\"message\":\"" + escape(messageText == null ? "" : messageText) + "\""
                 + "}";
 
         new Thread(() -> {
@@ -59,7 +85,7 @@ public final class SupermePurchaseApi {
     }
 
     private static String escape(String value) {
-        return value.replace("\\", "\\\\")
+        return value == null ? "" : value.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\r", "\\r")
                 .replace("\n", "\\n");
