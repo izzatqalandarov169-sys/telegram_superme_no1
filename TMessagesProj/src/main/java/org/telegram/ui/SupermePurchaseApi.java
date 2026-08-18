@@ -42,7 +42,7 @@ public final class SupermePurchaseApi {
             boolean ok = false;
             String error = null;
             try {
-                String response = CustomGiftApi.postJson("/api/purchase/gift", json);
+                String response = CustomGiftApi.postJson("/superme/external/gift", json);
                 JSONObject object = new JSONObject(response == null || response.isEmpty() ? "{}" : response);
                 ok = object.optBoolean("ok", false);
                 if (!ok) error = object.optString("error", "PURCHASE_FAILED");

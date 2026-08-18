@@ -1,34 +1,44 @@
 package org.telegram.ui;
 
 import android.content.Context;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import org.json.JSONObject;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Stars.StarsIntroActivity;
 
-/** Entry point to Telegram's real Stars screen and payment flow. */
+/** Superme Stars screen. The displayed balance comes from the Superme backend. */
 public class SupermeStarsActivity extends BaseFragment {
     @Override
     public View createView(Context context) {
-        actionBar.setTitle("Telegram Yulduzlar");
+        actionBar.setTitle("Stars");
 
         FrameLayout root = new FrameLayout(context);
-        TextView loading = new TextView(context);
-        loading.setText("⭐ Telegram Yulduzlar yuklanmoqda…");
-        loading.setGravity(Gravity.CENTER);
-        loading.setTextSize(16);
-        root.addView(loading, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        TextView balance = new TextView(context);
+        balance.setGravity(Gravity.CENTER);
+        balance.setText("⭐ Superme Stars\nYuklanmoqda…");
+        balance.setTextSize(24);
+        balance.setTypeface(null, Typeface.BOLD);
+        balance.setTextColor(Color.WHITE);
+        root.addView(balance, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
         fragmentView = root;
 
-        AndroidUtilities.runOnUIThread(() -> {
-            if (getParentActivity() == null || fragmentView == null) return;
-            presentFragment(new StarsIntroActivity());
-        }, 80);
+        new Thread(() -> {
+            try {
+                JSONObject response = CustomGiftApi.getSupermeBalance();
+                long stars = response.optLong("stars", 0L);
+                AndroidUtilities.runOnUIThread(() -> balance.setText("⭐ Superme Stars\n" + String.format("%,d", stars)));
+            } catch (Exception e) {
+                AndroidUtilities.runOnUIThread(() -> balance.setText("⭐ Superme Stars\nBalansni yuklab bo‘lmadi"));
+            }
+        }).start();
+
         return root;
     }
 }

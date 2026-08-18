@@ -1,7 +1,6 @@
 package org.telegram.ui;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -12,15 +11,15 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.UserConfig;
 import org.telegram.ui.Components.LayoutHelper;
 
-/** Profile gift view. Does not seed fake/local Telegram gifts. */
 public class SupermeProfileGiftsView extends ScrollView {
     private final Context context;
     private final LinearLayout grid;
-    private final SharedPreferences prefs;
     private final long uid;
 
     public SupermeProfileGiftsView(Context context) {
@@ -28,7 +27,6 @@ public class SupermeProfileGiftsView extends ScrollView {
         this.context = context;
         setFillViewport(true);
         setVerticalScrollBarEnabled(false);
-        prefs = context.getSharedPreferences("superme_gifts_v3", Context.MODE_PRIVATE);
         uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
 
         grid = new LinearLayout(context);
@@ -40,35 +38,42 @@ public class SupermeProfileGiftsView extends ScrollView {
 
     public void rebuild() {
         grid.removeAllViews();
+        new Thread(() -> {
+            try {
+                JSONObject response = CustomGiftApi.getProfileGifts();
+                JSONArray gifts = response.optJSONArray("gifts");
+                final String[][] rows = new String[gifts == null ? 0 : gifts.length()][];
+                for (int i = 0; gifts != null && i < gifts.length(); i++) {
+                    JSONObject g = gifts.optJSONObject(i);
+                    if (g == null) continue;
+                    rows[i] = new String[] {
+                            g.optString("gift_id", ""),
+                            g.optString("gift_title", "Gift"),
+                            String.valueOf(g.optLong("price_stars", 0)),
+                            "🎁"
+                    };
+                }
+                AndroidUtilities.runOnUIThread(() -> render(rows));
+            } catch (Exception ignored) {
+                AndroidUtilities.runOnUIThread(() -> render(new String[0][]));
+            }
+        }).start();
+    }
 
-        String owned = prefs.getString("u_" + uid + "_owned_gifts", "");
-        String received = prefs.getString("received_" + uid, "");
-        String rows = joinRows(owned, received);
-
-        // Do not seed fake gifts and do not show a fake stock/error message.
-        if (rows.trim().isEmpty()) return;
-
-        String[] items = rows.split("\\n");
+    private void render(String[][] rows) {
+        grid.removeAllViews();
         LinearLayout row = null;
         int count = 0;
-        for (String item : items) {
-            if (item.trim().isEmpty()) continue;
-            String[] p = item.split("\\|", -1);
-            if (p.length < 4) continue;
+        for (String[] item : rows) {
+            if (item == null || item.length < 4) continue;
             if (count % 3 == 0) {
                 row = new LinearLayout(context);
                 row.setGravity(Gravity.TOP);
                 grid.addView(row, LayoutHelper.createLinear(-1, AndroidUtilities.dp(146), 0, 0, 0, 6));
             }
-            addGift(row, p, count);
+            addGift(row, item, count);
             count++;
         }
-    }
-
-    private String joinRows(String a, String b) {
-        if (a == null || a.trim().isEmpty()) return b == null ? "" : b;
-        if (b == null || b.trim().isEmpty()) return a;
-        return a + "\n" + b;
     }
 
     private void addGift(LinearLayout row, String[] p, int index) {
@@ -116,7 +121,7 @@ public class SupermeProfileGiftsView extends ScrollView {
     }
 
     private long parsePrice(String value) {
-        try { return Long.parseLong(value); } catch (Exception e) { return 15L; }
+        try { return Long.parseLong(value); } catch (Exception e) { return 0L; }
     }
 
     private String rarityForPrice(long price) {
