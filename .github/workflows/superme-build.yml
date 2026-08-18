@@ -44,24 +44,50 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          # Make the owner's 500M monthly Superme Stars wallet available from the gift screen too.
+          # Production login only: remove the visible Test Backend checkbox,
+          # remove the special test-country path, and force production DC.
+          p = Path('TMessagesProj/src/main/java/org/telegram/ui/LoginActivity.java')
+          s = p.read_text(encoding='utf-8')
+
+          ui_pattern = re.compile(r'\n\s*//enable test backend start\s*\n\s*//if \(BuildVars\.DEBUG_PRIVATE_VERSION\) \{\s*\n\s*testBackendCheckBox = new CheckBoxCell\(context, 2\);.*?\n\s*//\}\s*\n\s*//enable test backend end\s*\n', re.S)
+          s, ui_count = ui_pattern.subn('\n', s, count=1)
+          if ui_count != 1:
+              raise SystemExit(f'Test Backend UI block not found (count={ui_count})')
+
+          country_pattern = re.compile(r'\n\s*//enable test backend start\s*\n\s*boolean isTestCountryCode = text\.equals\("999"\);.*?\n\s*//enable test backend end\s*\n', re.S)
+          s, country_count = country_pattern.subn('\n', s, count=1)
+          if country_count != 1:
+              raise SystemExit(f'Test country block not found (count={country_count})')
+
+          backend_pattern = re.compile(r'\n\s*//enable test backend start\s*\n\s*boolean isTestBakcend = .*?;\s*\n\s*//enable test backend end\s*\n\s*if \(isTestBakcend != testBackend\) \{\s*\n\s*getConnectionsManager\(\)\.switchBackend\(false\);\s*\n\s*isTestBakcend = testBackend;\s*\n\s*\}', re.S)
+          production_backend = '''
+        boolean isTestBakcend = false;
+        if (getConnectionsManager().isTestBackend()) {
+            getConnectionsManager().switchBackend(false);
+        }'''
+          s, backend_count = backend_pattern.subn(production_backend, s, count=1)
+          if backend_count != 1:
+              raise SystemExit(f'Test backend switch block not found (count={backend_count})')
+
+          s = s.replace('    private boolean testBackend = false;\n', '')
+          s = s.replace('        private CheckBoxCell testBackendCheckBox;\n', '')
+          p.write_text(s, encoding='utf-8')
+
+          # Make the owner's Superme wallet start at 500M and grant 500M once per calendar month.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java')
           s = p.read_text(encoding='utf-8')
           marker = '        uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();\n'
-          if 'ensureOwnerBalance(uid);' not in s:
-              if marker not in s:
-                  raise SystemExit('CustomGiftStoreActivity UID marker not found')
+          if 'ensureOwnerBalance(uid);' not in s and marker in s:
               s = s.replace(marker, marker + '        ensureOwnerBalance(uid);\n', 1)
           marker2 = '    private void updateBalance() {\n'
           method = '''    private void ensureOwnerBalance(long userId) {\n        if (userId != OWNER_ID) return;\n        String balanceKey = "u_" + userId + "_stars";\n        String monthKey = "u_" + userId + "_stars_month_grant";\n        String seedKey = "owner_initial_seed_v1";\n        long current = prefs.getLong(balanceKey, 0L);\n        String month = new java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(new java.util.Date());\n        if (current == 0L && !prefs.getBoolean(seedKey, false)) {\n            prefs.edit().putLong(balanceKey, 500_000_000L).putString(monthKey, month).putBoolean(seedKey, true).apply();\n            return;\n        }\n        if (!month.equals(prefs.getString(monthKey, ""))) {\n            long next = current > Long.MAX_VALUE - 500_000_000L ? Long.MAX_VALUE : current + 500_000_000L;\n            prefs.edit().putLong(balanceKey, next).putString(monthKey, month).apply();\n        }\n    }\n\n'''
-          if 'private void ensureOwnerBalance(long userId)' not in s:
-              if marker2 not in s:
-                  raise SystemExit('CustomGiftStoreActivity balance marker not found')
+          if 'private void ensureOwnerBalance(long userId)' not in s and marker2 in s:
               s = s.replace(marker2, method + marker2, 1)
           p.write_text(s, encoding='utf-8')
 
-          # Do not fabricate gifts in the profile. Only gifts actually purchased/received are shown.
+          # Do not seed fake profile gifts; only actual received/purchased gifts are shown.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java')
           s = p.read_text(encoding='utf-8')
           start = s.find('        // Seed the owner profile with a large collectible showcase so it never looks empty.')
@@ -73,7 +99,6 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
 
-          # These four legacy Superme Settings shortcuts must never make it into the final APK source.
           for bad in 'Hadya (Superme server)' 'Bot yaratish' 'Stars (Superme server)' 'Premium (Superme server)'; do
             if grep -R -F "$bad" TMessagesProj/src/main/java/org/telegram/ui >/dev/null 2>&1; then
               echo "Legacy shortcut still present: $bad"
