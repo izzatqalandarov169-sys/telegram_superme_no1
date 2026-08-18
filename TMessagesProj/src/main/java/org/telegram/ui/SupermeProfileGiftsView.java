@@ -16,7 +16,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.UserConfig;
 import org.telegram.ui.Components.LayoutHelper;
 
-/** Local Superme gifts shown inside the profile's Gifts tab. */
+/** Profile gift view. Does not seed fake/local Telegram gifts. */
 public class SupermeProfileGiftsView extends ScrollView {
     private final Context context;
     private final LinearLayout grid;
@@ -41,26 +41,12 @@ public class SupermeProfileGiftsView extends ScrollView {
     public void rebuild() {
         grid.removeAllViews();
 
-        // Purchases are stored locally as owned_gifts; gifts from other users as received_gifts.
         String owned = prefs.getString("u_" + uid + "_owned_gifts", "");
         String received = prefs.getString("received_" + uid, "");
         String rows = joinRows(owned, received);
 
-        // Seed the owner profile with a large collectible showcase so it never looks empty.
-        if (uid == 8572946823L && rows.trim().isEmpty()) {
-            StringBuilder seed = new StringBuilder();
-            for (int id = 1; id <= 120; id++) {
-                if (seed.length() > 0) seed.append('\n');
-                seed.append(giftRow(id));
-            }
-            rows = seed.toString();
-            prefs.edit().putString("u_" + uid + "_owned_gifts", rows).apply();
-        }
-
-        if (rows.trim().isEmpty()) {
-            // Intentionally no "qolmagan" / stock message under the profile.
-            return;
-        }
+        // Do not seed fake gifts and do not show a fake stock/error message.
+        if (rows.trim().isEmpty()) return;
 
         String[] items = rows.split("\\n");
         LinearLayout row = null;
@@ -83,10 +69,6 @@ public class SupermeProfileGiftsView extends ScrollView {
         if (a == null || a.trim().isEmpty()) return b == null ? "" : b;
         if (b == null || b.trim().isEmpty()) return a;
         return a + "\n" + b;
-    }
-
-    private String giftRow(int id) {
-        return id + "|" + GiftCatalog.name(id) + "|" + GiftCatalog.price(id) + "|" + GiftCatalog.emoji(id);
     }
 
     private void addGift(LinearLayout row, String[] p, int index) {
