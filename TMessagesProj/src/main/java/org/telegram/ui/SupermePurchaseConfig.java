@@ -6,7 +6,6 @@ public final class SupermePurchaseConfig {
 
     public static final long OWNER_USER_ID = 8572946823L;
     public static final long OWNER_INITIAL_STARS = 500_000_000L;
-    public static final long OWNER_MONTHLY_STARS = 500_000_000L;
 
     public static final long PREMIUM_MONTHLY_UZS = 15_000L;
     public static final long PREMIUM_YEARLY_UZS = 45_000L;
