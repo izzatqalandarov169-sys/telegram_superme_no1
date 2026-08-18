@@ -75,18 +75,6 @@ jobs:
           s = s.replace('        private CheckBoxCell testBackendCheckBox;\n', '')
           p.write_text(s, encoding='utf-8')
 
-          # Make the owner's Superme wallet start at 500M and grant 500M once per calendar month.
-          p = Path('TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java')
-          s = p.read_text(encoding='utf-8')
-          marker = '        uid = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();\n'
-          if 'ensureOwnerBalance(uid);' not in s and marker in s:
-              s = s.replace(marker, marker + '        ensureOwnerBalance(uid);\n', 1)
-          marker2 = '    private void updateBalance() {\n'
-          method = '''    private void ensureOwnerBalance(long userId) {\n        if (userId != OWNER_ID) return;\n        String balanceKey = "u_" + userId + "_stars";\n        String monthKey = "u_" + userId + "_stars_month_grant";\n        String seedKey = "owner_initial_seed_v1";\n        long current = prefs.getLong(balanceKey, 0L);\n        String month = new java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(new java.util.Date());\n        if (current == 0L && !prefs.getBoolean(seedKey, false)) {\n            prefs.edit().putLong(balanceKey, 500_000_000L).putString(monthKey, month).putBoolean(seedKey, true).apply();\n            return;\n        }\n        if (!month.equals(prefs.getString(monthKey, ""))) {\n            long next = current > Long.MAX_VALUE - 500_000_000L ? Long.MAX_VALUE : current + 500_000_000L;\n            prefs.edit().putLong(balanceKey, next).putString(monthKey, month).apply();\n        }\n    }\n\n'''
-          if 'private void ensureOwnerBalance(long userId)' not in s and marker2 in s:
-              s = s.replace(marker2, method + marker2, 1)
-          p.write_text(s, encoding='utf-8')
-
           # Do not seed fake profile gifts; only actual received/purchased gifts are shown.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java')
           s = p.read_text(encoding='utf-8')
