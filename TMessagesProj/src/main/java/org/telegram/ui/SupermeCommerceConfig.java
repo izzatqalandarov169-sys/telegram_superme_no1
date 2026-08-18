@@ -1,21 +1,23 @@
 package org.telegram.ui;
 
-/**
- * Central pricing/configuration for the Superme commerce layer.
- *
- * This is intentionally separate from Telegram's own Stars/Premium payment
- * classes: Superme purchases are local/server-side purchases and must not be
- * presented as completed Telegram transactions.
- */
+/** Central pricing/configuration for the Superme commerce layer. */
 public final class SupermeCommerceConfig {
     private SupermeCommerceConfig() { }
 
+    // Granted once by the Superme backend when the owner external account is first created.
     public static final long OWNER_INITIAL_STARS = 500_000_000L;
-    public static final long OWNER_MONTHLY_STARS_GRANT = 500_000_000L;
 
-    // Prices are Uzbek so'm, exactly as specified for the Superme store.
+    // Uzbek so'm prices.
     public static final long PREMIUM_MONTHLY_UZS = 15_000L;
     public static final long PREMIUM_YEARLY_UZS = 45_000L;
+    public static final long BUSINESS_MONTHLY_UZS = 15_000L;
+    public static final long BUSINESS_YEARLY_UZS = 45_000L;
+
+    // Superme Stars prices.
+    public static final long PREMIUM_MONTHLY_STARS = 1_000L;
+    public static final long PREMIUM_YEARLY_STARS = 500L;
+    public static final long BUSINESS_MONTHLY_STARS = 1_000L;
+    public static final long BUSINESS_YEARLY_STARS = 500L;
 
     public static final long[] STAR_PACKS = {
             100L, 150L, 250L, 350L, 500L, 750L,
@@ -29,9 +31,7 @@ public final class SupermeCommerceConfig {
 
     public static long priceForStars(long stars) {
         for (int i = 0; i < STAR_PACKS.length; i++) {
-            if (STAR_PACKS[i] == stars) {
-                return STAR_PRICES_UZS[i];
-            }
+            if (STAR_PACKS[i] == stars) return STAR_PRICES_UZS[i];
         }
         return -1L;
     }
