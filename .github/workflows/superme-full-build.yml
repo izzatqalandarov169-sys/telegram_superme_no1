@@ -20,15 +20,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/superme-overlay
-          for f in \
-            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java \
-            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java \
-            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java \
-            TMessagesProj/src/main/java/org/telegram/ui/SupermePurchaseApi.java \
-            TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java \
-            TMessagesProj/src/main/java/org/telegram/ui/SupermePremiumActivity.java \
-            TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java; do
-            test -f "$f"
+          files=(
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java
+            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java
+            TMessagesProj/src/main/java/org/telegram/ui/SupermePurchaseApi.java
+            TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java
+            TMessagesProj/src/main/java/org/telegram/ui/SupermePremiumActivity.java
+            TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java
+          )
+          for f in "${files[@]}"; do
+            if [[ ! -f "$f" ]]; then
+              echo "Missing Superme overlay file: $f"
+              exit 1
+            fi
+            echo "Saving overlay: $f"
             cp -a "$f" /tmp/superme-overlay/
           done
 
