@@ -60,7 +60,15 @@ public final class CustomGiftApi {
         String line;
         while ((line = r.readLine()) != null) out.append(line);
         r.close();
-        if (code >= 400) throw new Exception("Backend HTTP " + code + ": " + out);
+        if (code >= 400) {
+            try {
+                JSONObject error = new JSONObject(out.toString());
+                String detail = error.optString("detail", "");
+                if (!detail.isEmpty()) throw new Exception(detail);
+            } catch (org.json.JSONException ignored) {
+            }
+            throw new Exception("BACKEND_HTTP_" + code);
+        }
         return out.toString();
     }
 
