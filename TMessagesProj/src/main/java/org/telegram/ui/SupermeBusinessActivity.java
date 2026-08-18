@@ -13,7 +13,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.Components.LayoutHelper;
 
-/** Business storefront backed by Superme order/transaction infrastructure. */
+/** Business storefront with both Superme Stars and so'm payment paths. */
 public class SupermeBusinessActivity extends BaseFragment {
     @Override
     public View createView(Context context) {
@@ -31,41 +31,65 @@ public class SupermeBusinessActivity extends BaseFragment {
         root.addView(title, LayoutHelper.createLinear(-1, AndroidUtilities.dp(60)));
 
         TextView info = new TextView(context);
-        info.setText("Superme orqali xarid qilinadi. Telegram to‘lovi ishlatilmaydi.");
+        info.setText("Superme orqali xarid qilinadi");
         info.setGravity(Gravity.CENTER);
         info.setTextSize(15);
-        root.addView(info, LayoutHelper.createLinear(-1, AndroidUtilities.dp(60)));
+        root.addView(info, LayoutHelper.createLinear(-1, AndroidUtilities.dp(45)));
+
+        Button starsMonthly = new Button(context);
+        starsMonthly.setText("⭐ Oyiga 1 000 Stars");
+        root.addView(starsMonthly, LayoutHelper.createLinear(-1, AndroidUtilities.dp(52), 0, 0, 0, 8));
+
+        Button starsYearly = new Button(context);
+        starsYearly.setText("⭐ Yiliga 500 Stars");
+        root.addView(starsYearly, LayoutHelper.createLinear(-1, AndroidUtilities.dp(52), 0, 0, 0, 12));
 
         Button monthly = new Button(context);
-        monthly.setText("Oyiga 15 000 so‘m");
-        root.addView(monthly, LayoutHelper.createLinear(-1, AndroidUtilities.dp(52), 0, 0, 0, 12));
+        monthly.setText("💰 Oyiga 15 000 so‘m");
+        root.addView(monthly, LayoutHelper.createLinear(-1, AndroidUtilities.dp(52), 0, 0, 0, 8));
 
         Button yearly = new Button(context);
-        yearly.setText("Yiliga 45 000 so‘m");
+        yearly.setText("💰 Yiliga 45 000 so‘m");
         root.addView(yearly, LayoutHelper.createLinear(-1, AndroidUtilities.dp(52)));
 
         TextView status = new TextView(context);
         status.setGravity(Gravity.CENTER);
         status.setTextSize(13);
-        root.addView(status, LayoutHelper.createLinear(-1, AndroidUtilities.dp(70), 0, AndroidUtilities.dp(20), 0, 0));
+        root.addView(status, LayoutHelper.createLinear(-1, AndroidUtilities.dp(80), 0, AndroidUtilities.dp(16), 0, 0));
 
+        starsMonthly.setOnClickListener(v -> purchaseStars("business_month", status));
+        starsYearly.setOnClickListener(v -> purchaseStars("business_year", status));
         monthly.setOnClickListener(v -> createOrder("business_month", status));
         yearly.setOnClickListener(v -> createOrder("business_year", status));
         fragmentView = root;
         return root;
     }
 
+    private void purchaseStars(String productId, TextView status) {
+        status.setText("⭐ Stars balans tekshirilmoqda…");
+        new Thread(() -> {
+            try {
+                JSONObject result = CustomGiftApi.purchaseSubscriptionWithStars(productId);
+                long balance = result.optLong("balance", -1);
+                AndroidUtilities.runOnUIThread(() -> status.setText(
+                        "✅ Business faollashtirildi\nQolgan Stars: " + balance));
+            } catch (Exception e) {
+                AndroidUtilities.runOnUIThread(() -> status.setText("❌ Stars xaridi: " + e.getMessage()));
+            }
+        }).start();
+    }
+
     private void createOrder(String productId, TextView status) {
-        status.setText("Buyurtma yaratilmoqda…");
+        status.setText("So‘m buyurtmasi yaratilmoqda…");
         new Thread(() -> {
             try {
                 JSONObject result = CustomGiftApi.createSubscriptionOrder("business", productId);
                 String orderId = result.optString("order_id", "");
                 AndroidUtilities.runOnUIThread(() -> status.setText(orderId.isEmpty()
                         ? "Buyurtma yaratildi, lekin ID olinmadi"
-                        : "Superme buyurtmasi: " + orderId + "\nStatus: pending"));
+                        : "So‘m buyurtmasi: " + orderId + "\nStatus: pending"));
             } catch (Exception e) {
-                AndroidUtilities.runOnUIThread(() -> status.setText("Superme buyurtmasi xatosi: " + e.getMessage()));
+                AndroidUtilities.runOnUIThread(() -> status.setText("❌ So‘m buyurtmasi: " + e.getMessage()));
             }
         }).start();
     }
