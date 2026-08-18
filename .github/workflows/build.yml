@@ -22,20 +22,17 @@ jobs:
       - name: Checkout Superme repository
         uses: actions/checkout@v4
 
-      - name: Save Superme overlay files
+      - name: Save existing Superme overlay files
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/superme-overlay
-          for f in \
-            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java \
-            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java \
-            TMessagesProj/src/main/java/org/telegram/ui/GiftCatalog.java \
-            TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java \
-            TMessagesProj/src/main/java/org/telegram/ui/SupermePremiumActivity.java; do
-            test -f "$f"
-            cp -a "$f" /tmp/superme-overlay/
-          done
+          while IFS= read -r -d '' f; do
+            rel="${f#./}"
+            mkdir -p "/tmp/superme-overlay/$(dirname "$rel")"
+            cp -a "$f" "/tmp/superme-overlay/$rel"
+          done < <(find TMessagesProj TMessagesProj_App -type f \( -name 'Superme*.java' -o -name 'CustomGift*.java' \) -print0 2>/dev/null || true)
+          test -n "$(find /tmp/superme-overlay -type f -print -quit)"
 
       - name: Checkout full Telegram Android source
         uses: actions/checkout@v4
@@ -51,8 +48,7 @@ jobs:
           set -euo pipefail
           cp -a telegram-upstream/. ./
           rm -rf telegram-upstream
-          mkdir -p TMessagesProj/src/main/java/org/telegram/ui
-          cp -a /tmp/superme-overlay/. TMessagesProj/src/main/java/org/telegram/ui/
+          cp -a /tmp/superme-overlay/. ./
           test -f ./gradlew
           test -d ./TMessagesProj
           test -d ./TMessagesProj_App
