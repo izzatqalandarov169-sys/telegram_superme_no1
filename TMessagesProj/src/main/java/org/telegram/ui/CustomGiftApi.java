@@ -1,5 +1,6 @@
 package org.telegram.ui;
 
+import org.json.JSONObject;
 import org.telegram.messenger.UserConfig;
 
 import java.io.BufferedReader;
@@ -15,6 +16,19 @@ public final class CustomGiftApi {
 
     public static String get(String path) throws Exception { return request("GET", path, null); }
     public static String postJson(String path, String json) throws Exception { return request("POST", path, json); }
+
+    public static JSONObject getSupermeBalance() throws Exception {
+        return new JSONObject(get("/superme/external/balance"));
+    }
+
+    public static JSONObject getProfileGifts() throws Exception {
+        return new JSONObject(get("/superme/external/profile/gifts"));
+    }
+
+    public static JSONObject createSubscriptionOrder(String productType, String productId) throws Exception {
+        String json = "{\"product_type\":\"" + escape(productType) + "\",\"product_id\":\"" + escape(productId) + "\"}";
+        return new JSONObject(postJson("/superme/external/subscription-order", json));
+    }
 
     private static String request(String method, String path, String json) throws Exception {
         URL url = new URL(BASE_URL + (path.startsWith("/") ? path : "/" + path));
@@ -39,5 +53,9 @@ public final class CustomGiftApi {
         r.close();
         if (code >= 400) throw new Exception("Backend HTTP " + code + ": " + out);
         return out.toString();
+    }
+
+    private static String escape(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
