@@ -21,6 +21,10 @@ public final class CustomGiftApi {
         return new JSONObject(get("/superme/external/balance"));
     }
 
+    public static JSONObject getExternalGifts() throws Exception {
+        return new JSONObject(get("/superme/external/gifts"));
+    }
+
     public static JSONObject getProfileGifts() throws Exception {
         return new JSONObject(get("/superme/external/profile/gifts"));
     }
