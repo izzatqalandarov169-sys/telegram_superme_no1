@@ -39,7 +39,6 @@ public final class SupermePurchaseApi {
         );
     }
 
-    /** Purchase bridge used by the Superme GiftSheet. */
     public static void purchaseStarGift(
             String giftId,
             long stars,
@@ -100,9 +99,11 @@ public final class SupermePurchaseApi {
         if (error == null || error.isEmpty()) return "Gift xaridi amalga oshmadi.";
         if (error.contains("INSUFFICIENT_SUPERME_STARS")) return "Superme Stars yetarli emas.";
         if (error.contains("GIFT_PRICE_MISMATCH")) return "Gift narxi yangilangan. Qaytadan urinib ko‘ring.";
+        if (error.contains("GIFT_EXPIRED") || error.contains("GIFT_SOLD_OUT")) return "Bu gift tugagan.";
         if (error.contains("TELEGRAM_BOT_TOKEN_NOT_CONFIGURED")) return "Gift xizmati serverda sozlanmagan.";
         if (error.contains("TELEGRAM_GIFTS_UNAVAILABLE")) return "Telegram gift katalogi hozircha mavjud emas.";
         if (error.contains("BACKEND_HTTP_")) return "Superme serverida vaqtinchalik xatolik.";
+        if (error.contains("INVALID_GIFT")) return "Gift ma’lumotlari noto‘g‘ri.";
         return error;
     }
 
