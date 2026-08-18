@@ -11,3 +11,7 @@ services:
         sync: false
       - key: GIFT_SYNC_INTERVAL_MS
         value: "300000"
+      - key: SUPERME_OWNER_ID
+        sync: false
+      - key: SUPERME_INITIAL_STARS
+        value: "500000000"
