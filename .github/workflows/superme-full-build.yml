@@ -52,8 +52,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # Keep Telegram's native profile UI and replace only the profile gift
-          # presentation with the Superme-backed view already supplied by the overlay.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java')
           s = p.read_text(encoding='utf-8')
           field_marker = '    public ProfileGiftsView giftsView;\n'
@@ -93,9 +91,6 @@ jobs:
               s = s.replace(tab_marker, tab_add, 1)
           p.write_text(s, encoding='utf-8')
 
-          # Keep Telegram's GiftSheet/SendGiftSheet UI, but route the actual
-          # Star Gift purchase callback into SupermePurchaseApi instead of
-          # Telegram's StarsController purchase implementation.
           p = Path('TMessagesProj/src/main/java/org/telegram/ui/Gifts/SendGiftSheet.java')
           s = p.read_text(encoding='utf-8')
           if 'import org.telegram.ui.SupermePurchaseApi;' not in s:
@@ -110,15 +105,14 @@ jobs:
           if old in s:
               s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
+          PY
 
-          # Fail fast if obsolete Superme-server labels remain in Telegram UI.
           for bad in 'Hadya (Superme server)' 'Stars (Superme server)' 'Premium (Superme server)'; do
             if grep -R -F "$bad" TMessagesProj/src/main/java/org/telegram/ui >/dev/null 2>&1; then
               echo "Legacy shortcut still present: $bad"
               exit 1
             fi
           done
-          PY
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
