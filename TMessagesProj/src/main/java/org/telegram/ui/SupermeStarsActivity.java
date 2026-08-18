@@ -26,6 +26,7 @@ public class SupermeStarsActivity extends BaseFragment {
     private static final long MONTHLY_STARS = 500_000_000L;
     private static final String PREFS = "superme_gifts_v3";
     private static final String INITIAL_SEED = "owner_initial_seed_v1";
+    private static final String OWNER_BALANCE_FIX_V2 = "owner_balance_fix_v2";
     private SharedPreferences prefs;
     private TextView balance;
 
@@ -87,15 +88,26 @@ public class SupermeStarsActivity extends BaseFragment {
         String balanceKey = "u_" + uid + "_stars";
         String monthKey = "u_" + uid + "_stars_month_grant";
         long current = prefs.getLong(balanceKey, 0L);
+        String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
 
-        // One-time migration for installs where the old monthly marker existed but
-        // the local balance was never initialized in the current Stars screen.
-        if (current == 0L && !prefs.getBoolean(INITIAL_SEED, false)) {
-            String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
+        // Repair older installs once when the owner wallet was left at zero.
+        if (current == 0L && !prefs.getBoolean(OWNER_BALANCE_FIX_V2, false)) {
             prefs.edit()
                     .putLong(balanceKey, MONTHLY_STARS)
                     .putString(monthKey, month)
+                    .putBoolean(OWNER_BALANCE_FIX_V2, true)
                     .putBoolean(INITIAL_SEED, true)
+                    .putString("u_" + uid + "_stars_history", prefs.getString("u_" + uid + "_stars_history", "") + "\n+500 000 000 Stars (owner balance initialization " + month + ")")
+                    .apply();
+            return;
+        }
+
+        if (!prefs.getBoolean(INITIAL_SEED, false)) {
+            prefs.edit()
+                    .putLong(balanceKey, current == 0L ? MONTHLY_STARS : current)
+                    .putString(monthKey, month)
+                    .putBoolean(INITIAL_SEED, true)
+                    .putBoolean(OWNER_BALANCE_FIX_V2, true)
                     .putString("u_" + uid + "_stars_history", prefs.getString("u_" + uid + "_stars_history", "") + "\n+500 000 000 Stars (initial/monthly bonus " + month + ")")
                     .apply();
             return;
