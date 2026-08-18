@@ -30,6 +30,11 @@ public final class CustomGiftApi {
         return new JSONObject(postJson("/superme/external/subscription-order", json));
     }
 
+    public static JSONObject purchaseSubscriptionWithStars(String productId) throws Exception {
+        String json = "{\"product_id\":\"" + escape(productId) + "\"}";
+        return new JSONObject(postJson("/superme/external/subscription-stars", json));
+    }
+
     private static String request(String method, String path, String json) throws Exception {
         URL url = new URL(BASE_URL + (path.startsWith("/") ? path : "/" + path));
         HttpURLConnection c = (HttpURLConnection) url.openConnection();
