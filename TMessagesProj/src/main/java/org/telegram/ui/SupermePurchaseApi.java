@@ -2,11 +2,13 @@ package org.telegram.ui;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.widget.Toast;
 
 import org.json.JSONObject;
+import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_stars;
-import org.telegram.messenger.Utilities;
 
 /** Routes Star Gift purchases to the Superme backend instead of Telegram's payment flow. */
 public final class SupermePurchaseApi {
@@ -22,7 +24,7 @@ public final class SupermePurchaseApi {
             Utilities.Callback2<Boolean, String> whenDone
     ) {
         if (gift == null) {
-            if (whenDone != null) whenDone.run(false, "INVALID_GIFT");
+            finish(false, "INVALID_GIFT", whenDone);
             return;
         }
         purchaseStarGift(
@@ -37,7 +39,7 @@ public final class SupermePurchaseApi {
         );
     }
 
-    /** Purchase bridge used by the Superme GiftSheet when upstream GiftSheet is unavailable. */
+    /** Purchase bridge used by the Superme GiftSheet. */
     public static void purchaseStarGift(
             String giftId,
             long stars,
@@ -49,7 +51,7 @@ public final class SupermePurchaseApi {
             Utilities.Callback2<Boolean, String> whenDone
     ) {
         if (giftId == null || giftId.trim().isEmpty() || stars <= 0 || dialogId == 0) {
-            if (whenDone != null) whenDone.run(false, "INVALID_GIFT");
+            finish(false, "INVALID_GIFT", whenDone);
             return;
         }
 
@@ -79,9 +81,29 @@ public final class SupermePurchaseApi {
             final boolean result = ok;
             final String resultError = error;
             new Handler(Looper.getMainLooper()).post(() -> {
+                if (!result) {
+                    Toast.makeText(ApplicationLoader.applicationContext, friendlyError(resultError), Toast.LENGTH_LONG).show();
+                }
                 if (whenDone != null) whenDone.run(result, resultError);
             });
         }).start();
+    }
+
+    private static void finish(boolean ok, String error, Utilities.Callback2<Boolean, String> callback) {
+        if (!ok) {
+            Toast.makeText(ApplicationLoader.applicationContext, friendlyError(error), Toast.LENGTH_LONG).show();
+        }
+        if (callback != null) callback.run(ok, error);
+    }
+
+    private static String friendlyError(String error) {
+        if (error == null || error.isEmpty()) return "Gift xaridi amalga oshmadi.";
+        if (error.contains("INSUFFICIENT_SUPERME_STARS")) return "Superme Stars yetarli emas.";
+        if (error.contains("GIFT_PRICE_MISMATCH")) return "Gift narxi yangilangan. Qaytadan urinib ko‘ring.";
+        if (error.contains("TELEGRAM_BOT_TOKEN_NOT_CONFIGURED")) return "Gift xizmati serverda sozlanmagan.";
+        if (error.contains("TELEGRAM_GIFTS_UNAVAILABLE")) return "Telegram gift katalogi hozircha mavjud emas.";
+        if (error.contains("BACKEND_HTTP_")) return "Superme serverida vaqtinchalik xatolik.";
+        return error;
     }
 
     private static String escape(String value) {
