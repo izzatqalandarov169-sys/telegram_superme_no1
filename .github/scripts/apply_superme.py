@@ -11,7 +11,10 @@ def replace_once(path, old, new, missing_error):
     p.write_text(s.replace(old, new, 1), encoding="utf-8")
 
 
-p = Path("TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java")
+ui = Path("TMessagesProj/src/main/java/org/telegram/ui")
+
+# Put Superme gifts into the real Telegram profile gift tab.
+p = ui / "ProfileActivity.java"
 s = p.read_text(encoding="utf-8")
 field_marker = "    public ProfileGiftsView giftsView;\n"
 if "private SupermeProfileGiftsView supermeProfileGiftsView;" not in s:
@@ -50,7 +53,8 @@ if "boolean show = getSelectedTab() == SharedMediaLayout.TAB_GIFTS;" not in s:
     s = s.replace(tab_marker, tab_add, 1)
 p.write_text(s, encoding="utf-8")
 
-p = Path("TMessagesProj/src/main/java/org/telegram/ui/Gifts/SendGiftSheet.java")
+# Route Telegram gift purchases through Superme validation/backend.
+p = ui / "Gifts/SendGiftSheet.java"
 s = p.read_text(encoding="utf-8")
 if "import org.telegram.ui.SupermePurchaseApi;" not in s:
     marker = "import org.telegram.ui.ProfileActivity;\n"
@@ -63,6 +67,30 @@ if old not in s and new not in s:
     raise SystemExit("SendGiftSheet Star Gift purchase call not found")
 if old in s:
     s = s.replace(old, new, 1)
+p.write_text(s, encoding="utf-8")
+
+# Add a native Superme BotFather-style entry to Settings. It opens the real BotFather
+# for creation of real Telegram bot accounts; no fake bot token is generated locally.
+p = ui / "SettingsActivity.java"
+s = p.read_text(encoding="utf-8")
+setting_marker = 'items.add(SettingCell.Factory.of(16, 0xFFF38B31, 0xFFE26314, R.drawable.settings_gift, getString(R.string.SendAGift)));'
+if "🤖 Bot yaratish" not in s:
+    if setting_marker not in s:
+        raise SystemExit("Settings BotCreator insertion point not found")
+    s = s.replace(
+        setting_marker,
+        setting_marker + '\n        items.add(SettingCell.Factory.of(26, 0xFF6C63FF, 0xFF4B44CC, R.drawable.settings_gift, "🤖 Bot yaratish"));',
+        1,
+    )
+case_marker = "            case 17:\n"
+if "case 26:" not in s:
+    if case_marker not in s:
+        raise SystemExit("Settings BotCreator click insertion point not found")
+    s = s.replace(
+        case_marker,
+        "            case 26:\n                presentSettingFragment(new BotCreatorActivity());\n                break;\n" + case_marker,
+        1,
+    )
 p.write_text(s, encoding="utf-8")
 
 print("Superme Telegram integration applied successfully")
