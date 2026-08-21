@@ -1,17 +1,13 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: android-apk-manual
   cancel-in-progress: true
 
 jobs:
@@ -19,31 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - name: Checkout Superme overlay
+      - name: Checkout Superme source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Save Superme overlay
+      - name: Save complete Superme source
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/superme-overlay
-          files=(
-            TMessagesProj/src/main/java/org/telegram/messenger/SupermeBalance.java
-            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java
-            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java
-            TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java
-            TMessagesProj/src/main/java/org/telegram/ui/SupermeCommerceConfig.java
-            TMessagesProj/src/main/java/org/telegram/ui/SupermePurchaseApi.java
-            TMessagesProj/src/main/java/org/telegram/ui/SupermePurchaseConfig.java
-            TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java
-            TMessagesProj/src/main/java/org/telegram/ui/SupermePremiumActivity.java
-            TMessagesProj/src/main/java/org/telegram/ui/SupermeBusinessActivity.java
-            TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java
-          )
-          for f in "${files[@]}"; do
-            test -f "$f" || { echo "Missing Superme overlay file: $f"; exit 1; }
-            cp -a "$f" "/tmp/superme-overlay/$(basename "$f")"
-          done
+          cp -a TMessagesProj /tmp/superme-overlay/TMessagesProj
           test -f .github/scripts/apply_superme.py
           cp -a .github/scripts/apply_superme.py /tmp/apply_superme.py
 
@@ -55,25 +37,21 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Apply Superme features to Telegram base
+      - name: Apply complete Superme source
         shell: bash
         run: |
           set -euo pipefail
           cp -a telegram-upstream/. ./
           rm -rf telegram-upstream
-          mkdir -p TMessagesProj/src/main/java/org/telegram/ui
-          mkdir -p TMessagesProj/src/main/java/org/telegram/messenger
-          for f in /tmp/superme-overlay/*.java; do
-            base="$(basename "$f")"
-            case "$base" in
-              SupermeBalance.java) cp -a "$f" TMessagesProj/src/main/java/org/telegram/messenger/"$base" ;;
-              *) cp -a "$f" TMessagesProj/src/main/java/org/telegram/ui/"$base" ;;
-            esac
-          done
+          cp -a /tmp/superme-overlay/TMessagesProj/. TMessagesProj/
           python3 /tmp/apply_superme.py
+          test -f TMessagesProj/src/main/java/org/telegram/ui/SupermePurchaseApi.java
+          test -f TMessagesProj/src/main/java/org/telegram/messenger/SupermeBalance.java
           grep -F 'SupermeProfileGiftsView' TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java >/dev/null
           grep -F 'SupermePurchaseApi' TMessagesProj/src/main/java/org/telegram/ui/Gifts/SendGiftSheet.java >/dev/null
-          test -f TMessagesProj/src/main/java/org/telegram/messenger/SupermeBalance.java
+
+      - name: Record exact source commit
+        run: git rev-parse HEAD > SOURCE_COMMIT.txt
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -85,23 +63,25 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
-
       - name: Build AFAT debug APK
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g
-        run: ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --no-daemon --max-workers=2
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --no-daemon --max-workers=2
 
-      - name: Find APK
+      - name: Verify APK and source marker
         shell: bash
         run: |
           set -euo pipefail
-          find TMessagesProj_App/build/outputs/apk -type f -name '*.apk' -print
+          cat SOURCE_COMMIT.txt
+          find TMessagesProj_App/build/outputs/apk -type f -name '*.apk' -print -quit | grep -q .
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: telegram-superme-debug-apk
-          path: TMessagesProj_App/build/outputs/apk/**/*.apk
+          path: |
+            TMessagesProj_App/build/outputs/apk/**/*.apk
+            SOURCE_COMMIT.txt
           if-no-files-found: error
