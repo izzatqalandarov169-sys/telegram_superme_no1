@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: superme-full-apk-main
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,6 +19,8 @@ jobs:
     steps:
       - name: Checkout Superme overlay
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Save complete Superme source
         shell: bash
@@ -50,10 +56,14 @@ jobs:
             fi
           done
 
+          test -f TMessagesProj/src/main/java/org/telegram/ui/SupermePurchaseApi.java
           test -f TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java
           test -f TMessagesProj/src/main/java/org/telegram/messenger/SupermeBalance.java
           grep -F 'SupermeProfileGiftsView' TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java >/dev/null
           grep -F 'SupermePurchaseApi' TMessagesProj/src/main/java/org/telegram/ui/Gifts/SendGiftSheet.java >/dev/null
+
+      - name: Record exact source commit
+        run: git rev-parse HEAD > SOURCE_COMMIT.txt
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -70,9 +80,18 @@ jobs:
           chmod +x ./gradlew
           ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --no-daemon --max-workers=2
 
+      - name: Verify APK and source marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat SOURCE_COMMIT.txt
+          find TMessagesProj_App/build/outputs/apk -type f -name '*.apk' -print -quit | grep -q .
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: superme-full-debug-apk
-          path: TMessagesProj_App/build/outputs/apk/**/*.apk
+          path: |
+            TMessagesProj_App/build/outputs/apk/**/*.apk
+            SOURCE_COMMIT.txt
           if-no-files-found: error
