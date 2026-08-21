@@ -10,7 +10,9 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const SYNC_INTERVAL_MS = Number(process.env.GIFT_SYNC_INTERVAL_MS || 300000);
 const SUPERME_OWNER_ID = String(process.env.SUPERME_OWNER_ID || '8572946823').trim();
 const SUPERME_INITIAL_STARS = 500000000;
-const WELCOME_STARS = 10000;
+// Temporary private/testing mode: every NEW Superme account gets 500M Stars.
+// Before any public release, lower this value and enable paid packages.
+const WELCOME_STARS = 500000000;
 const FREE_MODE = true;
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -50,6 +52,7 @@ function ensureWelcome(userId) {
   commerce.welcome_claimed[userId] = { stars: WELCOME_STARS, created_at: new Date().toISOString() };
   commerce.history.push({ id: crypto.randomUUID(), type: 'welcome_bonus', user_id: userId, stars: WELCOME_STARS, created_at: new Date().toISOString(), message: 'Sovg‘a Dilshod & ChatGPT’dan' });
   saveCommerce();
+  return true;
 }
 function balance(userId) { ensureWelcome(userId); if (commerce.balances[userId] == null) { commerce.balances[userId] = 0; saveCommerce(); } return Number(commerce.balances[userId]); }
 function fail(res, status, error, details = '') { return res.status(status).json({ ok: false, error, ...(details ? { details } : {}) }); }
@@ -71,7 +74,6 @@ async function syncCatalog() {
       name: g.sticker?.emoji ? `${g.sticker.emoji} Superme Gift` : `Superme Gift ${i + 1}`,
       symbol: g.sticker?.emoji || '🎁', sticker: g.sticker || null,
       source_star_count: Number(g.star_count || 0),
-      // Superme owns the local copy; Telegram is only the catalog source.
       price_uzs: 0,
       superme_stars: Number(g.star_count || 0),
       creator: i % 2 === 0 ? 'Dilshod' : 'ChatGPT',
@@ -84,7 +86,7 @@ async function syncCatalog() {
   } catch (e) { cache = { ...cache, ok: false, error: String(e.message || e) }; }
 }
 
-app.get('/health', (_req, res) => res.json({ ok: true, free_mode: FREE_MODE, updated_at: cache.updated_at, gift_count: cache.gifts.length, catalog_error: cache.error, owner_id: SUPERME_OWNER_ID }));
+app.get('/health', (_req, res) => res.json({ ok: true, free_mode: FREE_MODE, welcome_stars: WELCOME_STARS, updated_at: cache.updated_at, gift_count: cache.gifts.length, catalog_error: cache.error, owner_id: SUPERME_OWNER_ID }));
 app.get('/api/telegram-gifts', (_req, res) => res.json(cache));
 app.get('/api/gifts', (_req, res) => res.json(cache));
 app.get('/superme/external/gifts', (_req, res) => res.json(cache));
@@ -159,4 +161,4 @@ app.post('/superme/external/stars-invoice', (_req, res) => fail(res, 403, 'FREE_
 ensureOwner();
 syncCatalog();
 setInterval(syncCatalog, SYNC_INTERVAL_MS).unref();
-app.listen(PORT, () => console.log(`Superme commerce server listening on ${PORT} (FREE_MODE=${FREE_MODE})`));
+app.listen(PORT, () => console.log(`Superme commerce server listening on ${PORT} (FREE_MODE=${FREE_MODE}, WELCOME_STARS=${WELCOME_STARS})`));
