@@ -1,6 +1,5 @@
-Superme build trigger: gift marketplace UI, Telegram gift catalog, local unlimited owner Stars and recurring Premium, gift creator only.
-Build trigger: 2026-08-17
-Verified overlay build: 500M monthly Stars, 150000 gifts, price/balance checks.
-Final verified build trigger.
-Stable full workflow retry.
-Stable overlay-only workflow.
+Superme build trigger: gift marketplace UI, Telegram gift catalog, local Superme Stars and free Premium/Business.
+Build trigger: 2026-08-22
+Current test mode: every new user receives 500,000,000 Superme Stars; all purchases are 0 UZS.
+Telegram is used only for the Gift catalog sync; Gift purchases and inventory are Superme-only.
+Build must use the latest main-source overlay and produce a fresh APK artifact.
