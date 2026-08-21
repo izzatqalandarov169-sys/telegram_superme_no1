@@ -1,31 +1,31 @@
 name: Superme APK Build
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
-      - name: Checkout Superme repository
+      - name: Checkout complete Superme source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: Save Superme overlay files
+      - name: Save complete Superme source
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/superme-overlay
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftApi.java /tmp/superme-overlay/
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftCreatorActivity.java /tmp/superme-overlay/
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/CustomGiftStoreActivity.java /tmp/superme-overlay/
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/GiftCatalog.java /tmp/superme-overlay/
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/SupermeStarsActivity.java /tmp/superme-overlay/
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/SupermePremiumActivity.java /tmp/superme-overlay/
-          cp -a TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java /tmp/superme-overlay/
+          cp -a TMessagesProj /tmp/superme-overlay/TMessagesProj
+          test -f .github/scripts/apply_superme.py
+          cp -a .github/scripts/apply_superme.py /tmp/apply_superme.py
 
-      - name: Checkout full Telegram Android source
+      - name: Checkout Telegram base
         uses: actions/checkout@v4
         with:
           repository: DrKLO/Telegram
@@ -33,70 +33,23 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Apply Telegram base and Superme overlay
+      - name: Apply complete Superme source
         shell: bash
         run: |
           set -euo pipefail
           cp -a telegram-upstream/. ./
           rm -rf telegram-upstream
-          mkdir -p TMessagesProj/src/main/java/org/telegram/ui
-          cp -a /tmp/superme-overlay/. TMessagesProj/src/main/java/org/telegram/ui/
+          cp -a /tmp/superme-overlay/TMessagesProj/. TMessagesProj/
+          python3 /tmp/apply_superme.py
+          test -f TMessagesProj/src/main/java/org/telegram/ui/SupermePurchaseApi.java
+          test -f TMessagesProj/src/main/java/org/telegram/messenger/SupermeBalance.java
+          grep -F 'SupermeProfileGiftsView' TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java >/dev/null
+          grep -F 'SupermePurchaseApi' TMessagesProj/src/main/java/org/telegram/ui/Gifts/SendGiftSheet.java >/dev/null
 
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+      - name: Record exact source commit
+        run: git rev-parse HEAD > SOURCE_COMMIT.txt
 
-          # Production login only: remove the visible Test Backend checkbox,
-          # remove the special test-country path, and force production DC.
-          p = Path('TMessagesProj/src/main/java/org/telegram/ui/LoginActivity.java')
-          s = p.read_text(encoding='utf-8')
-
-          ui_pattern = re.compile(r'\n\s*//enable test backend start\s*\n\s*//if \(BuildVars\.DEBUG_PRIVATE_VERSION\) \{\s*\n\s*testBackendCheckBox = new CheckBoxCell\(context, 2\);.*?\n\s*//\}\s*\n\s*//enable test backend end\s*\n', re.S)
-          s, ui_count = ui_pattern.subn('\n', s, count=1)
-          if ui_count != 1:
-              raise SystemExit(f'Test Backend UI block not found (count={ui_count})')
-
-          country_pattern = re.compile(r'\n\s*//enable test backend start\s*\n\s*boolean isTestCountryCode = text\.equals\("999"\);.*?\n\s*//enable test backend end\s*\n', re.S)
-          s, country_count = country_pattern.subn('\n', s, count=1)
-          if country_count != 1:
-              raise SystemExit(f'Test country block not found (count={country_count})')
-
-          backend_pattern = re.compile(r'\n\s*//enable test backend start\s*\n\s*boolean isTestBakcend = .*?;\s*\n\s*//enable test backend end\s*\n\s*if \(isTestBakcend != testBackend\) \{\s*\n\s*getConnectionsManager\(\)\.switchBackend\(false\);\s*\n\s*isTestBakcend = testBackend;\s*\n\s*\}', re.S)
-          production_backend = '''
-        boolean isTestBakcend = false;
-        if (getConnectionsManager().isTestBackend()) {
-            getConnectionsManager().switchBackend(false);
-        }'''
-          s, backend_count = backend_pattern.subn(production_backend, s, count=1)
-          if backend_count != 1:
-              raise SystemExit(f'Test backend switch block not found (count={backend_count})')
-
-          s = s.replace('    private boolean testBackend = false;\n', '')
-          s = s.replace('        private CheckBoxCell testBackendCheckBox;\n', '')
-          p.write_text(s, encoding='utf-8')
-
-          # Do not seed fake profile gifts; only actual received/purchased gifts are shown.
-          p = Path('TMessagesProj/src/main/java/org/telegram/ui/SupermeProfileGiftsView.java')
-          s = p.read_text(encoding='utf-8')
-          start = s.find('        // Seed the owner profile with a large collectible showcase so it never looks empty.')
-          if start != -1:
-              end = s.find('        if (rows.trim().isEmpty()) {', start)
-              if end == -1:
-                  raise SystemExit('Profile gift seed end marker not found')
-              s = s[:start] + s[end:]
-          p.write_text(s, encoding='utf-8')
-          PY
-
-          for bad in 'Hadya (Superme server)' 'Bot yaratish' 'Stars (Superme server)' 'Premium (Superme server)'; do
-            if grep -R -F "$bad" TMessagesProj/src/main/java/org/telegram/ui >/dev/null 2>&1; then
-              echo "Legacy shortcut still present: $bad"
-              exit 1
-            fi
-          done
-          test -f ./gradlew
-          test -d ./TMessagesProj
-
-      - name: Set up Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -106,21 +59,23 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
+      - name: Build debug APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --no-daemon --max-workers=2
 
-      - name: Build Telegram-compatible debug APK
-        run: ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace
-
-      - name: Verify APK exists
+      - name: Verify APK and source marker
         shell: bash
         run: |
           set -euo pipefail
+          cat SOURCE_COMMIT.txt
           find TMessagesProj_App/build/outputs/apk -type f -name '*.apk' -print -quit | grep -q .
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: superme-debug-apk
-          path: TMessagesProj_App/build/outputs/apk/**/*.apk
+          path: |
+            TMessagesProj_App/build/outputs/apk/**/*.apk
+            SOURCE_COMMIT.txt
           if-no-files-found: error
