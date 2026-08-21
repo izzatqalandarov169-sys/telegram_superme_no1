@@ -10,7 +10,7 @@ import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_stars;
 
-/** Routes Star Gift purchases to the Superme backend instead of Telegram's payment flow. */
+/** Routes regular Star Gift purchases to the Superme commerce backend. */
 public final class SupermePurchaseApi {
     private SupermePurchaseApi() { }
 
@@ -69,7 +69,10 @@ public final class SupermePurchaseApi {
             boolean ok = false;
             String error = null;
             try {
-                String response = CustomGiftApi.postJson("/superme/external/gift", json);
+                // This endpoint is implemented by the production Superme commerce service.
+                // It validates the Telegram catalog entry before charging the internal balance
+                // and only records the transaction after Telegram confirms delivery.
+                String response = CustomGiftApi.postJson("/api/purchase/gift", json);
                 JSONObject object = new JSONObject(response == null || response.isEmpty() ? "{}" : response);
                 ok = object.optBoolean("ok", false);
                 if (!ok) error = object.optString("error", "PURCHASE_FAILED");
@@ -98,9 +101,12 @@ public final class SupermePurchaseApi {
     private static String friendlyError(String error) {
         if (error == null || error.isEmpty()) return "Gift xaridi amalga oshmadi.";
         if (error.contains("INSUFFICIENT_SUPERME_STARS")) return "Superme Stars yetarli emas.";
-        if (error.contains("GIFT_PRICE_MISMATCH")) return "Gift narxi yangilangan. Qaytadan urinib ko‘ring.";
+        if (error.contains("GIFT_NOT_FOUND")) return "Bu gift Telegram katalogida hozir mavjud emas.";
+        if (error.contains("GIFT_PRICE_UNAVAILABLE")) return "Gift narxi hozir mavjud emas.";
         if (error.contains("GIFT_EXPIRED") || error.contains("GIFT_SOLD_OUT")) return "Bu gift tugagan.";
         if (error.contains("TELEGRAM_BOT_TOKEN_NOT_CONFIGURED")) return "Gift xizmati serverda sozlanmagan.";
+        if (error.contains("TELEGRAM_GIFT_DELIVERY_FAILED")) return "Telegram giftni yuborishning iloji bo‘lmadi.";
+        if (error.contains("GIFT_DELIVERY_NOT_CONFIGURED")) return "Telegram gift yetkazib berish xizmati sozlanmagan.";
         if (error.contains("TELEGRAM_GIFTS_UNAVAILABLE")) return "Telegram gift katalogi hozircha mavjud emas.";
         if (error.contains("BACKEND_HTTP_")) return "Superme serverida vaqtinchalik xatolik.";
         if (error.contains("INVALID_GIFT")) return "Gift ma’lumotlari noto‘g‘ri.";
