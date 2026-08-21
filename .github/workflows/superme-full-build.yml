@@ -22,10 +22,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Save complete Superme source
+      - name: Save exact Superme commit and source
         shell: bash
         run: |
           set -euo pipefail
+          printf '%s\n' "$GITHUB_SHA" > /tmp/superme-commit.txt
           mkdir -p /tmp/superme-overlay
           cp -a TMessagesProj /tmp/superme-overlay/TMessagesProj
           test -f .github/scripts/apply_superme.py
@@ -62,8 +63,13 @@ jobs:
           grep -F 'SupermeProfileGiftsView' TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java >/dev/null
           grep -F 'SupermePurchaseApi' TMessagesProj/src/main/java/org/telegram/ui/Gifts/SendGiftSheet.java >/dev/null
 
-      - name: Record exact source commit
-        run: git rev-parse HEAD > SOURCE_COMMIT.txt
+      - name: Record exact Superme source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(cat /tmp/superme-commit.txt)"
+          printf '%s\n' "$expected" > SOURCE_COMMIT.txt
+          test "$(cat SOURCE_COMMIT.txt)" = "$GITHUB_SHA"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -84,7 +90,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat SOURCE_COMMIT.txt
+          echo "Superme source commit: $(cat SOURCE_COMMIT.txt)"
+          test "$(cat SOURCE_COMMIT.txt)" = "$GITHUB_SHA"
           find TMessagesProj_App/build/outputs/apk -type f -name '*.apk' -print -quit | grep -q .
 
       - name: Upload APK
