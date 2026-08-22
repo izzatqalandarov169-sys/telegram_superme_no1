@@ -10,13 +10,15 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const SYNC_INTERVAL_MS = Number(process.env.GIFT_SYNC_INTERVAL_MS || 300000);
 const SUPERME_OWNER_ID = String(process.env.SUPERME_OWNER_ID || '8572946823').trim();
 const SUPERME_INITIAL_STARS = 500000000;
-// Temporary private/testing mode: every NEW Superme account gets 500M Stars.
-// Before any public release, lower this value and enable paid packages.
 const WELCOME_STARS = 500000000;
+const WELCOME_PREMIUM_MONTHS = 12;
+const WELCOME_BUSINESS_MONTHS = 12;
 const FREE_MODE = true;
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'superme-commerce.json');
+const GIFTS_CACHE_FILE = path.join(DATA_DIR, 'telegram-gifts-cache.json');
+
 let cache = { ok: false, updated_at: null, gifts: [], error: null };
 let commerce = loadCommerce();
 
@@ -24,17 +26,44 @@ function loadCommerce() {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const p = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-      return { balances: p.balances || {}, transactions: p.transactions || {}, history: p.history || [], owner_initialized: Boolean(p.owner_initialized), welcome_claimed: p.welcome_claimed || {}, gifts: p.gifts || {}, premium: p.premium || {}, business: p.business || {} };
+      return { 
+        balances: p.balances || {}, 
+        transactions: p.transactions || {}, 
+        history: p.history || [], 
+        owner_initialized: Boolean(p.owner_initialized), 
+        welcome_claimed: p.welcome_claimed || {}, 
+        gifts: p.gifts || {}, 
+        premium: p.premium || {}, 
+        business: p.business || {} 
+      };
     }
   } catch (e) { console.error(`Commerce load failed: ${e.message}`); }
   return { balances: {}, transactions: {}, history: [], owner_initialized: false, welcome_claimed: {}, gifts: {}, premium: {}, business: {} };
 }
+
 function saveCommerce() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = `${DATA_FILE}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(commerce, null, 2));
   fs.renameSync(tmp, DATA_FILE);
 }
+
+function loadGiftsCache() {
+  try {
+    if (fs.existsSync(GIFTS_CACHE_FILE)) {
+      return JSON.parse(fs.readFileSync(GIFTS_CACHE_FILE, 'utf8'));
+    }
+  } catch (e) { console.error(`Gifts cache load failed: ${e.message}`); }
+  return { gifts: [], updated_at: null };
+}
+
+function saveGiftsCache(giftsData) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const tmp = `${GIFTS_CACHE_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(giftsData, null, 2));
+  fs.renameSync(tmp, GIFTS_CACHE_FILE);
+}
+
 function ensureOwner() {
   if (commerce.owner_initialized) return;
   if (commerce.balances[SUPERME_OWNER_ID] == null) {
@@ -44,35 +73,114 @@ function ensureOwner() {
   commerce.owner_initialized = true;
   saveCommerce();
 }
+
+function calculatePremiumExpiry(months = WELCOME_PREMIUM_MONTHS) {
+  const expiry = new Date();
+  expiry.setMonth(expiry.getMonth() + months);
+  return expiry.toISOString();
+}
+
+function calculateBusinessExpiry(months = WELCOME_BUSINESS_MONTHS) {
+  const expiry = new Date();
+  expiry.setMonth(expiry.getMonth() + months);
+  return expiry.toISOString();
+}
+
 function ensureWelcome(userId) {
   ensureOwner();
   if (!userId || userId === SUPERME_OWNER_ID || commerce.welcome_claimed[userId]) return false;
+  
+  // 500M Stars
   if (commerce.balances[userId] == null) commerce.balances[userId] = 0;
   commerce.balances[userId] += WELCOME_STARS;
-  commerce.welcome_claimed[userId] = { stars: WELCOME_STARS, created_at: new Date().toISOString() };
-  commerce.history.push({ id: crypto.randomUUID(), type: 'welcome_bonus', user_id: userId, stars: WELCOME_STARS, created_at: new Date().toISOString(), message: 'Sovg‘a Dilshod & ChatGPT’dan' });
+  
+  // 12 months Premium (FREE)
+  if (!commerce.premium[userId]) {
+    commerce.premium[userId] = {
+      product_id: 'superme_premium_12m',
+      price_uzs: 0,
+      free: true,
+      activated_at: new Date().toISOString(),
+      expires_at: calculatePremiumExpiry(WELCOME_PREMIUM_MONTHS),
+      months: WELCOME_PREMIUM_MONTHS
+    };
+  }
+  
+  // 12 months Business (FREE)
+  if (!commerce.business[userId]) {
+    commerce.business[userId] = {
+      product_id: 'superme_business_12m',
+      price_uzs: 0,
+      free: true,
+      activated_at: new Date().toISOString(),
+      expires_at: calculateBusinessExpiry(WELCOME_BUSINESS_MONTHS),
+      months: WELCOME_BUSINESS_MONTHS
+    };
+  }
+  
+  commerce.welcome_claimed[userId] = { 
+    stars: WELCOME_STARS, 
+    premium_months: WELCOME_PREMIUM_MONTHS,
+    business_months: WELCOME_BUSINESS_MONTHS,
+    created_at: new Date().toISOString() 
+  };
+  
+  commerce.history.push({ 
+    id: crypto.randomUUID(), 
+    type: 'welcome_bonus', 
+    user_id: userId, 
+    stars: WELCOME_STARS, 
+    premium_months: WELCOME_PREMIUM_MONTHS,
+    business_months: WELCOME_BUSINESS_MONTHS,
+    created_at: new Date().toISOString(), 
+    message: "Sovg'a Dilshod & ChatGPT'dan" 
+  });
   saveCommerce();
   return true;
 }
-function balance(userId) { ensureWelcome(userId); if (commerce.balances[userId] == null) { commerce.balances[userId] = 0; saveCommerce(); } return Number(commerce.balances[userId]); }
-function fail(res, status, error, details = '') { return res.status(status).json({ ok: false, error, ...(details ? { details } : {}) }); }
+
+function balance(userId) { 
+  ensureWelcome(userId); 
+  if (commerce.balances[userId] == null) { 
+    commerce.balances[userId] = 0; 
+    saveCommerce(); 
+  } 
+  return Number(commerce.balances[userId]); 
+}
+
+function fail(res, status, error, details = '') { 
+  return res.status(status).json({ ok: false, error, ...(details ? { details } : {}) }); 
+}
 
 async function telegram(method, params = {}) {
   if (!BOT_TOKEN) throw new Error('TELEGRAM_CATALOG_TOKEN_NOT_CONFIGURED');
-  const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(params) });
+  const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, { 
+    method: 'POST', 
+    headers: { 'content-type': 'application/json' }, 
+    body: JSON.stringify(params) 
+  });
   const d = await r.json();
   if (!d.ok) throw new Error(d.description || `TELEGRAM_API_ERROR_${r.status}`);
   return d.result;
 }
 
+/**
+ * Sync gift catalog from Telegram API and cache to file
+ */
 async function syncCatalog() {
   try {
+    console.log('[SYNC] Starting Telegram gift catalog sync...');
     const result = await telegram('getAvailableGifts');
     const source = Array.isArray(result?.gifts) ? result.gifts : [];
+    
+    console.log(`[SYNC] Fetched ${source.length} gifts from Telegram API`);
+    
     const gifts = source.map((g, i) => ({
-      id: String(g.id), source_id: String(g.id),
+      id: String(g.id),
+      source_id: String(g.id),
       name: g.sticker?.emoji ? `${g.sticker.emoji} Superme Gift` : `Superme Gift ${i + 1}`,
-      symbol: g.sticker?.emoji || '🎁', sticker: g.sticker || null,
+      symbol: g.sticker?.emoji || '🎁',
+      sticker: g.sticker || null,
       source_star_count: Number(g.star_count || 0),
       price_uzs: 0,
       superme_stars: Number(g.star_count || 0),
@@ -80,27 +188,118 @@ async function syncCatalog() {
       owner: 'Dilshod',
       remaining_count: g.remaining_count ?? null,
       total_count: g.total_count ?? null,
-      is_premium: Boolean(g.is_premium), is_birthday: Boolean(g.is_birthday)
+      is_premium: Boolean(g.is_premium),
+      is_birthday: Boolean(g.is_birthday)
     }));
+    
+    // Save to cache file
+    saveGiftsCache({ gifts, updated_at: new Date().toISOString() });
+    
     cache = { ok: true, updated_at: new Date().toISOString(), gifts, error: null };
-  } catch (e) { cache = { ...cache, ok: false, error: String(e.message || e) }; }
+    console.log(`[SYNC] ✅ Successfully synced and cached ${gifts.length} gifts`);
+  } catch (e) {
+    console.error(`[SYNC] ❌ Sync failed: ${e.message}`);
+    // Try to load from cache if sync fails
+    const cachedData = loadGiftsCache();
+    if (cachedData.gifts && cachedData.gifts.length > 0) {
+      cache = { ok: true, updated_at: cachedData.updated_at, gifts: cachedData.gifts, error: `Sync failed, using cached data: ${String(e.message || e)}` };
+      console.log(`[SYNC] Loaded ${cachedData.gifts.length} gifts from cache file`);
+    } else {
+      cache = { ...cache, ok: false, error: String(e.message || e) };
+    }
+  }
 }
 
-app.get('/health', (_req, res) => res.json({ ok: true, free_mode: FREE_MODE, welcome_stars: WELCOME_STARS, updated_at: cache.updated_at, gift_count: cache.gifts.length, catalog_error: cache.error, owner_id: SUPERME_OWNER_ID }));
+// Health check endpoint
+app.get('/health', (_req, res) => res.json({ 
+  ok: true, 
+  free_mode: FREE_MODE, 
+  welcome_stars: WELCOME_STARS,
+  welcome_premium_months: WELCOME_PREMIUM_MONTHS,
+  welcome_business_months: WELCOME_BUSINESS_MONTHS,
+  updated_at: cache.updated_at, 
+  gift_count: cache.gifts.length, 
+  catalog_error: cache.error,
+  cached_gifts_available: cache.gifts.length > 0
+}));
+
+// Gift catalog endpoints
 app.get('/api/telegram-gifts', (_req, res) => res.json(cache));
 app.get('/api/gifts', (_req, res) => res.json(cache));
 app.get('/superme/external/gifts', (_req, res) => res.json(cache));
-app.get('/superme/external/catalog/stars', (_req, res) => res.json({ ok: true, free_mode: true, amounts: [100,150,250,350,500,750,1000,1500,2500,5000,10000].map(stars => ({ stars, price_uzs: 0 })) }));
+
+// All available gifts (full details)
+app.get('/superme/external/catalog/gifts', (_req, res) => {
+  return res.json({
+    ok: true,
+    gifts: cache.gifts.map(g => ({
+      id: g.id,
+      name: g.name,
+      symbol: g.symbol,
+      sticker: g.sticker,
+      price_stars: g.superme_stars,
+      price_uzs: g.price_uzs,
+      is_premium: g.is_premium,
+      is_birthday: g.is_birthday,
+      creator: g.creator
+    })),
+    total_count: cache.gifts.length,
+    updated_at: cache.updated_at
+  });
+});
+
+app.get('/superme/external/catalog/stars', (_req, res) => res.json({ 
+  ok: true, 
+  free_mode: true, 
+  amounts: [100,150,250,350,500,750,1000,1500,2500,5000,10000].map(stars => ({ stars, price_uzs: 0 })) 
+}));
 
 app.get('/api/superme/balance', (req, res) => {
   const id = String(req.get('X-Client-Id') || '').trim();
   if (!id) return fail(res, 400, 'CLIENT_ID_REQUIRED');
-  return res.json({ ok: true, balance: balance(id), welcome_bonus: id === SUPERME_OWNER_ID ? 0 : WELCOME_STARS });
+  ensureWelcome(id);
+  return res.json({ 
+    ok: true, 
+    balance: balance(id), 
+    welcome_bonus: id === SUPERME_OWNER_ID ? 0 : WELCOME_STARS,
+    premium: commerce.premium[id] || null,
+    business: commerce.business[id] || null
+  });
 });
+
 app.get('/superme/external/balance', (req, res) => {
   const id = String(req.get('X-Client-Id') || '').trim();
   if (!id) return fail(res, 400, 'CLIENT_ID_REQUIRED');
-  return res.json({ ok: true, stars: balance(id), balance: balance(id), welcome_bonus: id === SUPERME_OWNER_ID ? 0 : WELCOME_STARS });
+  ensureWelcome(id);
+  return res.json({ 
+    ok: true, 
+    stars: balance(id), 
+    balance: balance(id), 
+    welcome_bonus: id === SUPERME_OWNER_ID ? 0 : WELCOME_STARS,
+    premium: commerce.premium[id] || null,
+    business: commerce.business[id] || null
+  });
+});
+
+// Get user subscription status
+app.get('/superme/external/subscription/status', (req, res) => {
+  const id = String(req.get('X-Client-Id') || '').trim();
+  if (!id) return fail(res, 400, 'CLIENT_ID_REQUIRED');
+  ensureWelcome(id);
+  
+  const premium = commerce.premium[id] || null;
+  const business = commerce.business[id] || null;
+  
+  return res.json({
+    ok: true,
+    user_id: id,
+    has_premium: Boolean(premium),
+    has_business: Boolean(business),
+    premium_expires_at: premium?.expires_at || null,
+    business_expires_at: business?.expires_at || null,
+    premium_status: premium ? 'active' : 'inactive',
+    business_status: business ? 'active' : 'inactive'
+  });
 });
 
 // Superme-only gift purchase. Telegram is never called here.
@@ -118,12 +317,25 @@ app.post('/api/purchase/gift', (req, res) => {
   const before = balance(userId);
   if (before < stars) return fail(res, 402, 'INSUFFICIENT_SUPERME_STARS');
   const after = before - stars;
-  const tx = { id: crypto.randomUUID(), request_id: requestId, type: 'gift_purchase', user_id: userId, recipient_id: recipientId, gift_id: giftId, stars, price_uzs: 0, creator: gift.creator, owner: gift.owner, created_at: new Date().toISOString(), balance_before: before, balance_after: after };
+  const tx = { 
+    id: crypto.randomUUID(), 
+    request_id: requestId, 
+    type: 'gift_purchase', 
+    user_id: userId, 
+    recipient_id: recipientId, 
+    gift_id: giftId, 
+    stars, 
+    price_uzs: 0, 
+    creator: gift.creator, 
+    owner: gift.owner, 
+    created_at: new Date().toISOString() 
+  };
   commerce.balances[userId] = after;
   if (!commerce.gifts[recipientId]) commerce.gifts[recipientId] = [];
   commerce.gifts[recipientId].push({ ...gift, received_from: userId, received_at: tx.created_at, transaction_id: tx.id });
   commerce.transactions[requestId] = { transaction: tx, response: { ok: true, transaction_id: tx.id, balance: after, gift_id: giftId, price_uzs: 0 } };
-  commerce.history.push(tx); saveCommerce();
+  commerce.history.push(tx);
+  saveCommerce();
   return res.json(commerce.transactions[requestId].response);
 });
 
@@ -133,32 +345,82 @@ app.get('/superme/external/profile/gifts', (req, res) => {
   return res.json({ ok: true, gifts: commerce.gifts[id] || [] });
 });
 
-// Free Premium and Business: no monetary payment and no Stars charge.
+// Auto-activate Premium and Business for new users on first login
 app.post('/superme/external/subscription-order', (req, res) => {
   const userId = String(req.get('X-Client-Id') || '').trim();
   const productId = String(req.body?.product_id || '').trim();
   if (!userId || !productId) return fail(res, 400, 'INVALID_ORDER');
+  
+  ensureWelcome(userId); // This will auto-activate Premium & Business
+  
   const isBusiness = productId.startsWith('business');
   const store = isBusiness ? commerce.business : commerce.premium;
-  store[userId] = { product_id: productId, price_uzs: 0, free: true, activated_at: new Date().toISOString() };
-  saveCommerce();
-  return res.json({ ok: true, order_id: crypto.randomUUID(), status: 'completed', price_uzs: 0, free: true, product_id: productId });
+  
+  if (!store[userId]) {
+    store[userId] = { 
+      product_id: productId, 
+      price_uzs: 0, 
+      free: true, 
+      activated_at: new Date().toISOString(),
+      expires_at: isBusiness ? calculateBusinessExpiry() : calculatePremiumExpiry(),
+      months: isBusiness ? WELCOME_BUSINESS_MONTHS : WELCOME_PREMIUM_MONTHS
+    };
+    saveCommerce();
+  }
+  
+  return res.json({ 
+    ok: true, 
+    order_id: crypto.randomUUID(), 
+    status: 'completed', 
+    price_uzs: 0, 
+    free: true, 
+    product_id: productId,
+    expires_at: store[userId].expires_at,
+    months: store[userId].months
+  });
 });
+
 app.post('/superme/external/subscription-stars', (req, res) => {
   const userId = String(req.get('X-Client-Id') || '').trim();
   const productId = String(req.body?.product_id || '').trim();
   if (!userId || !productId) return fail(res, 400, 'INVALID_PRODUCT');
+  
+  ensureWelcome(userId);
+  
   const isBusiness = productId.startsWith('business');
   const store = isBusiness ? commerce.business : commerce.premium;
-  store[userId] = { product_id: productId, price_uzs: 0, stars_charged: 0, free: true, activated_at: new Date().toISOString() };
-  saveCommerce();
-  return res.json({ ok: true, balance: balance(userId), product_id: productId, type: isBusiness ? 'superme_business' : 'superme_premium', stars_charged: 0, price_uzs: 0 });
+  
+  if (!store[userId]) {
+    store[userId] = { 
+      product_id: productId, 
+      price_uzs: 0, 
+      stars_charged: 0, 
+      free: true, 
+      activated_at: new Date().toISOString(),
+      expires_at: isBusiness ? calculateBusinessExpiry() : calculatePremiumExpiry(),
+      months: isBusiness ? WELCOME_BUSINESS_MONTHS : WELCOME_PREMIUM_MONTHS
+    };
+    saveCommerce();
+  }
+  
+  return res.json({ 
+    ok: true, 
+    balance: balance(userId), 
+    product_id: productId, 
+    type: isBusiness ? 'superme_business' : 'superme_premium', 
+    stars_charged: 0, 
+    price_uzs: 0,
+    expires_at: store[userId].expires_at,
+    months: store[userId].months
+  });
 });
 
 // Payment is intentionally disabled while FREE_MODE is active.
 app.post('/superme/external/stars-invoice', (_req, res) => fail(res, 403, 'FREE_MODE_PAYMENT_DISABLED', 'Superme is currently free: all monetary purchases cost 0 UZS.'));
 
+// Initialize and start sync
 ensureOwner();
 syncCatalog();
 setInterval(syncCatalog, SYNC_INTERVAL_MS).unref();
-app.listen(PORT, () => console.log(`Superme commerce server listening on ${PORT} (FREE_MODE=${FREE_MODE}, WELCOME_STARS=${WELCOME_STARS})`));
+
+app.listen(PORT, () => console.log(`Superme commerce server listening on ${PORT} (FREE_MODE=${FREE_MODE}, WELCOME_STARS=${WELCOME_STARS}, PREMIUM_MONTHS=${WELCOME_PREMIUM_MONTHS}, BUSINESS_MONTHS=${WELCOME_BUSINESS_MONTHS})`));
